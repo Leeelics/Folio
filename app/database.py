@@ -8,7 +8,7 @@ settings = get_settings()
 # Create async engine
 engine = create_async_engine(
     settings.database_url,
-    echo=True,
+    echo=False,
     future=True,
     pool_pre_ping=True,
 )
@@ -77,6 +77,8 @@ async def init_db():
         ExpenseCategory,
         CoreCashFlow,
         MarketSyncLog,
+        Liability,
+        LiabilityPayment,
     )
 
     async with engine.begin() as conn:

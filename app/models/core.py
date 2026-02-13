@@ -186,6 +186,7 @@ class Holding(Base):
 
     currency: Mapped[str] = mapped_column(String(10), default="CNY")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    notes: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -381,9 +382,11 @@ class CoreCashFlow(Base):
     balance_after: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
 
     # 关联
-    expense_id: Mapped[Optional[int]] = mapped_column(ForeignKey("expenses.id"), nullable=True)
+    expense_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("expenses.id", ondelete="SET NULL"), nullable=True
+    )
     investment_transaction_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("core_investment_transactions.id"), nullable=True
+        ForeignKey("core_investment_transactions.id", ondelete="SET NULL"), nullable=True
     )
 
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -416,3 +419,112 @@ class MarketSyncLog(Base):
 
     def __repr__(self) -> str:
         return f"<MarketSyncLog(id={self.id}, status='{self.status}', value={self.total_value})>"
+
+
+class CoreTransfer(Base):
+    """
+    账户转账记录表
+    记录账户间的资金转移
+    """
+
+    __tablename__ = "core_transfers"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+
+    from_account_id: Mapped[int] = mapped_column(
+        ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    to_account_id: Mapped[int] = mapped_column(
+        ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    amount: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    transfer_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+
+    # cash_to_cash: 现金账户间转账
+    # cash_to_investment: 现金 → 投资账户balance（充值）
+    # investment_to_cash: 投资账户balance → 现金（提现）
+    # investment_to_investment: 投资账户间balance转移
+
+    status: Mapped[str] = mapped_column(String(20), default="completed", index=True)
+
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    # 关系
+    from_account: Mapped["Account"] = relationship(foreign_keys=[from_account_id])
+    to_account: Mapped["Account"] = relationship(foreign_keys=[to_account_id])
+
+    def __repr__(self) -> str:
+        return f"<CoreTransfer(id={self.id}, type='{self.transfer_type}', amount={self.amount})>"
+
+
+class Liability(Base):
+    """
+    负债账户表
+    管理房贷、车贷、信用卡、其他贷款
+    """
+
+    __tablename__ = "liabilities"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    liability_type: Mapped[str] = mapped_column(
+        String(20), nullable=False, index=True
+    )  # mortgage/car_loan/credit_card/other
+
+    institution: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    original_amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
+    remaining_amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
+    monthly_payment: Mapped[Optional[Decimal]] = mapped_column(Numeric(15, 2), nullable=True)
+    interest_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 4), nullable=True)
+
+    start_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    end_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    payment_day: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    currency: Mapped[str] = mapped_column(String(10), default="CNY")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    payments: Mapped[List["LiabilityPayment"]] = relationship(
+        back_populates="liability", cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:
+        return f"<Liability(id={self.id}, name='{self.name}', type='{self.liability_type}')>"
+
+
+class LiabilityPayment(Base):
+    """
+    负债还款记录表
+    """
+
+    __tablename__ = "liability_payments"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+
+    liability_id: Mapped[int] = mapped_column(
+        ForeignKey("liabilities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    account_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("accounts.id"), nullable=True, index=True
+    )
+
+    amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
+    principal: Mapped[Optional[Decimal]] = mapped_column(Numeric(15, 2), nullable=True)
+    interest: Mapped[Optional[Decimal]] = mapped_column(Numeric(15, 2), nullable=True)
+    payment_date: Mapped[date] = mapped_column(Date, nullable=False)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    liability: Mapped["Liability"] = relationship(back_populates="payments")
+    account: Mapped[Optional["Account"]] = relationship()

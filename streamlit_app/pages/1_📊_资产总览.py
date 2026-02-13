@@ -1,21 +1,20 @@
+"""
+资产总览页面 - 完整财务仪表盘
+"""
+
 import streamlit as st
-import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
 import sys
 import os
-import logging
+from datetime import datetime, timedelta
 
-# 添加父目录到路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from api_client import EquilibraAPIClient
-
-logger = logging.getLogger(__name__)
 
 st.set_page_config(page_title="资产总览", page_icon="📊", layout="wide")
 
 
-# 初始化 API 客户端
 @st.cache_resource
 def get_api_client():
     api_url = os.getenv("API_URL", "http://localhost:8000")
@@ -27,305 +26,147 @@ api_client = get_api_client()
 st.title("📊 资产总览")
 st.markdown("---")
 
-# 刷新按钮
-col1, col2 = st.columns([6, 1])
+
+def format_currency(amount, currency="CNY"):
+    symbols = {"CNY": "¥", "USD": "$", "HKD": "HK$"}
+    symbol = symbols.get(currency, currency)
+    return f"{symbol}{float(amount or 0):,.2f}"
+
+
+def _f(val):
+    return float(val or 0)
+
+
+# ============ 刷新按钮 ============
+if st.button("🔄 刷新"):
+    st.cache_data.clear()
+    st.rerun()
+
+
+# ============ 关键指标 ============
+dashboard = api_client.get_dashboard()
+
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    st.metric("净资产", format_currency(dashboard.get("net_worth", 0)))
 with col2:
-    if st.button("🔄 刷新数据", use_container_width=True):
-        st.cache_data.clear()
-        st.rerun()
+    st.metric("总资产", format_currency(dashboard.get("total_assets", 0)))
+with col3:
+    st.metric("总负债", format_currency(dashboard.get("total_liability", 0)))
+with col4:
+    st.metric("本月支出", format_currency(dashboard.get("monthly_expense_total", 0)))
 
 
-# 获取资产数据
-@st.cache_data(ttl=60)
-def load_portfolio_data():
-    return api_client.get_portfolio_status()
+# ============ 资产分布图表 ============
+st.markdown("---")
+col_left, col_right = st.columns(2)
+
+accounts = api_client.get_accounts()
+
+with col_left:
+    st.subheader("资产分布")
+    cash_total = sum(_f(a.get("balance", 0)) for a in accounts if a["account_type"] == "cash")
+    investment_total = sum(_f(a.get("total_value", 0)) for a in accounts if a["account_type"] == "investment")
+    
+    df_dist = pd.DataFrame({
+        "类型": ["现金账户", "投资账户"],
+        "金额": [cash_total, investment_total]
+    })
+    fig_dist = px.pie(df_dist, values="金额", names="类型", hole=0.4)
+    st.plotly_chart(fig_dist, use_container_width=True)
+
+with col_right:
+    st.subheader("账户余额")
+    df_accounts = pd.DataFrame([{
+        "账户": a["name"],
+        "余额": _f(a.get("total_value") if a["account_type"] == "investment" else a.get("balance"))
+    } for a in accounts])
+    fig_bar = px.bar(df_accounts, x="账户", y="余额")
+    st.plotly_chart(fig_bar, use_container_width=True)
 
 
-@st.cache_data(ttl=60)
-def load_stock_summary():
-    try:
-        return api_client.get_positions_summary()
-    except:
-        return None
+# ============ 负债概览 ============
+st.markdown("---")
+st.subheader("💳 负债概览")
+
+liabilities = api_client.get_liabilities()
+if liabilities:
+    for lib in liabilities:
+        col_a, col_b, col_c = st.columns([2, 1, 1])
+        with col_a:
+            st.write(f"**{lib['name']}**")
+        with col_b:
+            st.write(f"剩余: {format_currency(lib.get('remaining_amount', 0))}")
+        with col_c:
+            st.write(f"月供: {format_currency(lib.get('monthly_payment', 0))}")
+else:
+    st.info("暂无负债")
 
 
-@st.cache_data(ttl=60)
-def load_brokerage_summary():
-    """加载新平台账户系统的资产汇总"""
-    try:
-        return api_client.get_brokerage_summary()
-    except Exception as e:
-        logger.warning(f"加载新系统资产汇总失败: {e}")
-        return None
+# ============ 支出分析图表 ============
+st.markdown("---")
+col_trend, col_category = st.columns(2)
+
+expenses = api_client.get_expenses()
+
+with col_trend:
+    st.subheader("月度支出趋势")
+    six_months_ago = datetime.now() - timedelta(days=180)
+    recent_expenses = [e for e in expenses if datetime.fromisoformat(e["date"].replace("Z", "+00:00")) >= six_months_ago]
+    
+    df_expenses = pd.DataFrame(recent_expenses)
+    if not df_expenses.empty:
+        df_expenses["month"] = pd.to_datetime(df_expenses["date"]).dt.to_period("M").astype(str)
+        df_monthly = df_expenses.groupby("month")["amount"].sum().reset_index()
+        fig_trend = px.line(df_monthly, x="month", y="amount", markers=True)
+        st.plotly_chart(fig_trend, use_container_width=True)
+    else:
+        st.info("暂无支出数据")
+
+with col_category:
+    st.subheader("本月支出分类")
+    current_month = datetime.now().replace(day=1)
+    month_expenses = [e for e in expenses if datetime.fromisoformat(e["date"].replace("Z", "+00:00")) >= current_month]
+    
+    if month_expenses:
+        df_category = pd.DataFrame(month_expenses).groupby("category")["amount"].sum().reset_index()
+        fig_category = px.pie(df_category, values="amount", names="category")
+        st.plotly_chart(fig_category, use_container_width=True)
+    else:
+        st.info("本月暂无支出")
 
 
-@st.cache_data(ttl=60)
-def load_brokerage_allocation():
-    """加载新平台账户系统的资产分配"""
-    try:
-        return api_client.get_brokerage_allocation()
-    except Exception as e:
-        logger.warning(f"加载新系统资产分配失败: {e}")
-        return None
+# ============ 预算执行 ============
+st.markdown("---")
+st.subheader("📅 预算执行")
+
+budgets = dashboard.get("active_budgets", [])
+if budgets:
+    for budget in budgets:
+        amount = _f(budget.get("amount", 0))
+        spent = _f(budget.get("spent", 0))
+        progress = (spent / amount * 100) if amount > 0 else 0
+        
+        col_a, col_b = st.columns([3, 1])
+        with col_a:
+            st.write(f"**{budget['name']}**")
+            st.progress(min(progress / 100, 1.0))
+        with col_b:
+            st.write(f"{format_currency(spent)} / {format_currency(amount)}")
+else:
+    st.info("暂无进行中的预算")
 
 
-try:
-    portfolio = load_portfolio_data()
-    stock_summary = load_stock_summary()
-    brokerage_summary = load_brokerage_summary()
-    brokerage_allocation = load_brokerage_allocation()
+# ============ 快捷操作 ============
+st.markdown("---")
+st.subheader("⚡ 快捷操作")
 
-    # 关键指标卡片
-    st.markdown("### 📈 关键指标")
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        # 优先显示新系统的总资产
-        total_assets = (
-            brokerage_summary["total_assets_cny"]
-            if brokerage_summary
-            else portfolio["total_assets"]
-        )
-        st.metric(label="💰 总资产", value=f"¥{total_assets:,.2f}")
-
-    with col2:
-        wedding_finance = portfolio["wedding_finance"]
-        st.metric(label="💍 婚礼预算剩余", value=f"¥{wedding_finance['remaining_budget']:,.2f}")
-
-    with col3:
-        st.metric(label="🛡️ 安全边际", value=f"{wedding_finance['margin_percentage']:.1f}%")
-
-    with col4:
-        st.metric(label="💵 可投资金额", value=f"¥{wedding_finance['investable_amount']:,.2f}")
-
-    # 股票持仓快速概览
-    if stock_summary and stock_summary.get("position_count", 0) > 0:
-        st.markdown("---")
-        st.markdown("### 📈 股票持仓概览")
-
-        col1, col2, col3, col4 = st.columns(4)
-
-        with col1:
-            st.metric(label="股票市值", value=f"¥{stock_summary.get('total_current_cny', 0):,.2f}")
-
-        with col2:
-            st.metric(label="股票成本", value=f"¥{stock_summary.get('total_cost_cny', 0):,.2f}")
-
-        with col3:
-            pnl = stock_summary.get("total_pnl_cny", 0)
-            pnl_pct = stock_summary.get("total_pnl_percent", 0)
-            st.metric(label="股票盈亏", value=f"¥{pnl:,.2f}", delta=f"{pnl_pct:+.2f}%")
-
-        with col4:
-            st.metric(label="持仓数量", value=f"{stock_summary.get('position_count', 0)} 只")
-
-        # 快速入口
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("📈 查看股票行情", use_container_width=True):
-                st.switch_page("pages/6_📈_股票行情.py")
-        with col2:
-            if st.button("💼 管理股票持仓", use_container_width=True):
-                st.switch_page("pages/7_💼_股票持仓.py")
-
-    st.markdown("---")
-
-    # 资产分布
-    col1, col2 = st.columns([1, 1])
-
-    with col1:
-        st.markdown("### 🥧 资产分布")
-
-        # 准备饼图数据
-        allocation = portfolio["allocation"]
-        labels = list(allocation.keys())
-        values = [allocation[key]["value"] for key in labels]
-        percentages = [allocation[key]["percentage"] for key in labels]
-
-        # 创建饼图
-        fig = go.Figure(
-            data=[
-                go.Pie(
-                    labels=labels,
-                    values=values,
-                    hole=0.4,
-                    textinfo="label+percent",
-                    textposition="outside",
-                    marker=dict(
-                        colors=px.colors.qualitative.Set3, line=dict(color="white", width=2)
-                    ),
-                )
-            ]
-        )
-
-        fig.update_layout(showlegend=True, height=400, margin=dict(t=20, b=20, l=20, r=20))
-
-        st.plotly_chart(fig, use_container_width=True)
-
-    with col2:
-        st.markdown("### 📋 账户明细")
-
-        # 显示各账户详情
-        for account_type, info in allocation.items():
-            with st.expander(f"{account_type} - ¥{info['value']:,.2f} ({info['percentage']:.1f}%)"):
-                for account in info["accounts"]:
-                    st.markdown(f"""
-                    - **{account["name"]}**: {account["balance"]:,.2f} {account["currency"]}
-                    """)
-
-    st.markdown("---")
-
-    # 婚礼金安全水位
-    st.markdown("### 💍 婚礼金安全水位")
-
-    col1, col2 = st.columns([2, 1])
-
-    with col1:
-        # 创建进度条可视化
-        wedding_finance = portfolio["wedding_finance"]
-        total_budget = wedding_finance["wedding_budget"]
-        spent = wedding_finance["spent"]
-        remaining = wedding_finance["remaining_budget"]
-
-        # 计算百分比
-        spent_pct = (spent / total_budget) * 100 if total_budget > 0 else 0
-        remaining_pct = (remaining / total_budget) * 100 if total_budget > 0 else 0
-
-        # 创建堆叠条形图
-        fig = go.Figure()
-
-        fig.add_trace(
-            go.Bar(
-                name="已支出",
-                x=[spent],
-                y=["婚礼预算"],
-                orientation="h",
-                marker=dict(color="#FF6B6B"),
-                text=f"¥{spent:,.0f}",
-                textposition="inside",
-            )
-        )
-
-        fig.add_trace(
-            go.Bar(
-                name="剩余预算",
-                x=[remaining],
-                y=["婚礼预算"],
-                orientation="h",
-                marker=dict(color="#4ECDC4"),
-                text=f"¥{remaining:,.0f}",
-                textposition="inside",
-            )
-        )
-
-        fig.update_layout(
-            barmode="stack",
-            height=150,
-            showlegend=True,
-            margin=dict(t=20, b=20, l=100, r=20),
-            xaxis=dict(title="金额 (CNY)"),
-            yaxis=dict(title=""),
-        )
-
-        st.plotly_chart(fig, use_container_width=True)
-
-    with col2:
-        st.markdown("#### 📊 预算详情")
-        st.markdown(f"""
-        - **总预算**: ¥{total_budget:,.2f}
-        - **已支出**: ¥{spent:,.2f}
-        - **剩余**: ¥{remaining:,.2f}
-        - **距离婚礼**: {wedding_finance["days_until_wedding"]} 天
-        """)
-
-        # 风险等级显示
-        risk_level = wedding_finance["risk_level"]
-        risk_colors = {"LOW": "🟢", "MEDIUM": "🟡", "HIGH": "🟠", "CRITICAL": "🔴"}
-        st.markdown(f"**风险等级**: {risk_colors.get(risk_level, '⚪')} {risk_level}")
-
-    st.markdown("---")
-
-    # 系统建议
-    st.markdown("### 💡 系统建议")
-    for rec in portfolio.get("recommendations", []):
-        st.info(rec)
-
-    # ============ 新系统：平台账户资产分布 ============
-    if brokerage_summary and brokerage_summary.get("accounts"):
-        st.markdown("---")
-        st.markdown("### 🏦 平台账户资产分布（新系统）")
-
-        # 账户资产表格
-        account_data = []
-        for account in brokerage_summary["accounts"]:
-            account_data.append(
-                {
-                    "账户名称": account["account_name"],
-                    "类型": account["platform_type"],
-                    "机构": account.get("institution", "-"),
-                    "现金": f"¥{account['cash_cny']:,.2f}",
-                    "持仓": f"¥{account['holdings_cny']:,.2f}",
-                    "总资产": f"¥{account['total_cny']:,.2f}",
-                }
-            )
-
-        if account_data:
-            st.dataframe(pd.DataFrame(account_data), use_container_width=True, hide_index=True)
-
-        # 资产分配饼图
-        if brokerage_allocation:
-            col1, col2 = st.columns(2)
-
-            with col1:
-                st.markdown("#### 按平台类型分布")
-                if brokerage_allocation.get("by_platform_type"):
-                    labels = list(brokerage_allocation["by_platform_type"].keys())
-                    values = list(brokerage_allocation["by_platform_type"].values())
-
-                    fig = go.Figure(
-                        data=[
-                            go.Pie(
-                                labels=labels,
-                                values=values,
-                                hole=0.4,
-                                textinfo="label+percent",
-                                textposition="outside",
-                            )
-                        ]
-                    )
-                    fig.update_layout(height=300, margin=dict(t=20, b=20, l=20, r=20))
-                    st.plotly_chart(fig, use_container_width=True)
-
-            with col2:
-                st.markdown("#### 按资产类型分布")
-                if brokerage_allocation.get("by_asset_type"):
-                    labels = list(brokerage_allocation["by_asset_type"].keys())
-                    values = list(brokerage_allocation["by_asset_type"].values())
-
-                    fig = go.Figure(
-                        data=[
-                            go.Pie(
-                                labels=labels,
-                                values=values,
-                                hole=0.4,
-                                textinfo="label+percent",
-                                textposition="outside",
-                            )
-                        ]
-                    )
-                    fig.update_layout(height=300, margin=dict(t=20, b=20, l=20, r=20))
-                    st.plotly_chart(fig, use_container_width=True)
-
-        # 快速入口
-        st.markdown("#### 快速操作")
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("💰 管理平台账户", use_container_width=True):
-                st.switch_page("pages/2_💰_账户管理.py")
-        with col2:
-            if st.button("➕ 添加新账户", use_container_width=True):
-                st.switch_page("pages/2_💰_账户管理.py")
-
-except Exception as e:
-    st.error(f"❌ 无法加载资产数据: {str(e)}")
-    st.info("请确保后端服务正在运行。")
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    st.page_link("pages/4_📝_日常记账.py", label="📝 日常记账")
+with col2:
+    st.page_link("pages/2_💰_账户管理.py", label="💰 账户管理")
+with col3:
+    st.page_link("pages/3_📅_预算管理.py", label="📅 预算管理")
+with col4:
+    st.page_link("pages/1_📊_资产总览.py", label="📊 资产总览")

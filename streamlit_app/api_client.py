@@ -590,3 +590,321 @@ class EquilibraAPIClient:
     def refresh_exchange_rates(self) -> Dict[str, Any]:
         """刷新所有汇率"""
         return self._post("/api/v1/brokerage/exchange-rate/refresh")
+
+    # ============ Phase 2.1: Core Account APIs ============
+
+    def get_accounts(
+        self, account_type: Optional[str] = None, is_active: bool = True
+    ) -> List[Dict[str, Any]]:
+        """获取账户列表"""
+        params = (
+            f"?account_type={account_type}&is_active={is_active}"
+            if account_type
+            else f"?is_active={is_active}"
+        )
+        return self._get(f"/api/v1/core/accounts{params}")
+
+    def get_account(self, account_id: int) -> Dict[str, Any]:
+        """获取单个账户详情"""
+        return self._get(f"/api/v1/core/accounts/{account_id}")
+
+    def create_account(
+        self,
+        name: str,
+        account_type: str,
+        institution: Optional[str] = None,
+        initial_balance: float = 0.0,
+        currency: str = "CNY",
+    ) -> Dict[str, Any]:
+        """创建账户"""
+        return self._post(
+            "/api/v1/core/accounts",
+            {
+                "name": name,
+                "account_type": account_type,
+                "institution": institution,
+                "initial_balance": str(initial_balance),
+                "currency": currency,
+            },
+        )
+
+    def update_account(
+        self, account_id: int, name: Optional[str] = None, notes: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """更新账户"""
+        data = {}
+        if name:
+            data["name"] = name
+        if notes:
+            data["notes"] = notes
+        return self._put(f"/api/v1/core/accounts/{account_id}", data)
+
+    def delete_account(self, account_id: int) -> Dict[str, Any]:
+        """删除账户"""
+        return self._delete(f"/api/v1/core/accounts/{account_id}")
+
+    # ============ Phase 2.1: Holdings APIs ============
+
+    def get_holdings(
+        self, account_id: Optional[int] = None, is_active: bool = True
+    ) -> List[Dict[str, Any]]:
+        """获取持仓列表"""
+        params = (
+            f"?account_id={account_id}&is_active={is_active}"
+            if account_id
+            else f"?is_active={is_active}"
+        )
+        return self._get(f"/api/v1/core/holdings{params}")
+
+    def create_holding(
+        self,
+        account_id: int,
+        symbol: str,
+        name: str,
+        asset_type: str,
+        quantity: float,
+        avg_cost: float,
+        current_price: Optional[float] = None,
+        current_value: Optional[float] = None,
+        is_liquid: bool = False,
+    ) -> Dict[str, Any]:
+        """添加持仓"""
+        return self._post(
+            "/api/v1/core/holdings",
+            {
+                "account_id": account_id,
+                "symbol": symbol,
+                "name": name,
+                "asset_type": asset_type,
+                "quantity": str(quantity),
+                "avg_cost": str(avg_cost),
+                "current_price": str(current_price) if current_price else None,
+                "current_value": str(current_value) if current_value else None,
+                "is_liquid": is_liquid,
+            },
+        )
+
+    def update_holding(
+        self,
+        holding_id: int,
+        quantity: Optional[float] = None,
+        current_price: Optional[float] = None,
+        current_value: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """更新持仓"""
+        data = {}
+        if quantity is not None:
+            data["quantity"] = str(quantity)
+        if current_price is not None:
+            data["current_price"] = str(current_price)
+        if current_value is not None:
+            data["current_value"] = str(current_value)
+        return self._put(f"/api/v1/core/holdings/{holding_id}", data)
+
+    def delete_holding(self, holding_id: int) -> Dict[str, Any]:
+        """删除持仓"""
+        return self._delete(f"/api/v1/core/holdings/{holding_id}")
+
+    def sync_holdings_value(self) -> Dict[str, Any]:
+        """同步持仓市值"""
+        return self._post("/api/v1/core/holdings/sync")
+
+    # ============ Phase 2.1: Transfer APIs ============
+
+    def create_transfer(
+        self, from_account_id: int, to_account_id: int, amount: float, notes: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """创建转账"""
+        data = {
+            "from_account_id": from_account_id,
+            "to_account_id": to_account_id,
+            "amount": str(amount),
+        }
+        if notes:
+            data["notes"] = notes
+        return self._post("/api/v1/core/transfers", data)
+
+    def get_transfers(
+        self,
+        from_account_id: Optional[int] = None,
+        to_account_id: Optional[int] = None,
+        transfer_type: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """获取转账记录"""
+        params = []
+        if from_account_id:
+            params.append(f"from_account_id={from_account_id}")
+        if to_account_id:
+            params.append(f"to_account_id={to_account_id}")
+        if transfer_type:
+            params.append(f"transfer_type={transfer_type}")
+        params.append(f"limit={limit}")
+        return self._get(f"/api/v1/core/transfers?{'&'.join(params)}")
+
+    # ============ Phase 2.1: Expense APIs ============
+
+    def create_expense(
+        self,
+        account_id: int,
+        amount: float,
+        expense_date: str,
+        category: str,
+        subcategory: Optional[str] = None,
+        budget_id: Optional[int] = None,
+        merchant: Optional[str] = None,
+        payment_method: Optional[str] = None,
+        notes: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """创建支出"""
+        data = {
+            "account_id": account_id,
+            "amount": str(amount),
+            "expense_date": expense_date,
+            "category": category,
+            "subcategory": subcategory,
+            "merchant": merchant,
+            "payment_method": payment_method,
+            "notes": notes,
+        }
+        if budget_id:
+            data["budget_id"] = budget_id
+        return self._post("/api/v1/core/expenses", data)
+
+    def get_expenses(
+        self, account_id: Optional[int] = None, budget_id: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """获取支出列表"""
+        params = []
+        if account_id:
+            params.append(f"account_id={account_id}")
+        if budget_id:
+            params.append(f"budget_id={budget_id}")
+        param_str = f"?{'&'.join(params)}" if params else ""
+        return self._get(f"/api/v1/core/expenses{param_str}")
+
+    # ============ Phase 2.1: Budget APIs ============
+
+    def get_budgets(
+        self, budget_type: Optional[str] = None, status: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """获取预算列表"""
+        params = []
+        if budget_type:
+            params.append(f"budget_type={budget_type}")
+        if status:
+            params.append(f"status={status}")
+        param_str = f"?{'&'.join(params)}" if params else ""
+        return self._get(f"/api/v1/core/budgets{param_str}")
+
+    def get_budget(self, budget_id: int) -> Dict[str, Any]:
+        """获取单个预算"""
+        return self._get(f"/api/v1/core/budgets/{budget_id}")
+
+    def create_budget(
+        self,
+        name: str,
+        budget_type: str,
+        amount: float,
+        period_start: str,
+        period_end: str,
+        associated_account_ids: Optional[List[int]] = None,
+        notes: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """创建预算"""
+        data = {
+            "name": name,
+            "budget_type": budget_type,
+            "amount": str(amount),
+            "period_start": period_start,
+            "period_end": period_end,
+        }
+        if associated_account_ids:
+            data["associated_account_ids"] = associated_account_ids
+        if notes:
+            data["notes"] = notes
+        return self._post("/api/v1/core/budgets", data)
+
+    def complete_budget(self, budget_id: int) -> Dict[str, Any]:
+        """完成预算"""
+        return self._post(f"/api/v1/core/budgets/{budget_id}/complete")
+
+    def get_budget_available_funds(self, budget_id: int) -> Dict[str, Any]:
+        """获取预算关联账户的可用资金"""
+        return self._get(f"/api/v1/core/budgets/{budget_id}/available-funds")
+
+    # ============ Phase 2.1: Category APIs ============
+
+    def get_categories(self) -> List[Dict[str, Any]]:
+        """获取支出分类列表"""
+        return self._get("/api/v1/core/categories")
+
+    # ============ Phase 2.1: Dashboard APIs ============
+
+    def get_dashboard(self) -> Dict[str, Any]:
+        """获取仪表盘数据"""
+        return self._get("/api/v1/core/dashboard")
+
+    # ============ Phase 2.2: Liability APIs ============
+
+    def get_liabilities(self, liability_type: Optional[str] = None, is_active: bool = True) -> List[Dict[str, Any]]:
+        """获取负债列表"""
+        params = [f"is_active={is_active}"]
+        if liability_type:
+            params.append(f"liability_type={liability_type}")
+        return self._get(f"/api/v1/core/liabilities?{'&'.join(params)}")
+
+    def get_liability(self, liability_id: int) -> Dict[str, Any]:
+        """获取单个负债"""
+        return self._get(f"/api/v1/core/liabilities/{liability_id}")
+
+    def create_liability(self, name: str, liability_type: str, original_amount: float, remaining_amount: float, institution: Optional[str] = None, monthly_payment: Optional[float] = None, interest_rate: Optional[float] = None, start_date: Optional[str] = None, end_date: Optional[str] = None, payment_day: Optional[int] = None, notes: Optional[str] = None) -> Dict[str, Any]:
+        """创建负债"""
+        data = {"name": name, "liability_type": liability_type, "original_amount": str(original_amount), "remaining_amount": str(remaining_amount)}
+        if institution: data["institution"] = institution
+        if monthly_payment is not None: data["monthly_payment"] = str(monthly_payment)
+        if interest_rate is not None: data["interest_rate"] = str(interest_rate)
+        if start_date: data["start_date"] = start_date
+        if end_date: data["end_date"] = end_date
+        if payment_day is not None: data["payment_day"] = payment_day
+        if notes: data["notes"] = notes
+        return self._post("/api/v1/core/liabilities", data)
+
+    def update_liability(self, liability_id: int, **kwargs) -> Dict[str, Any]:
+        """更新负债"""
+        data = {k: v for k, v in kwargs.items() if v is not None}
+        return self._put(f"/api/v1/core/liabilities/{liability_id}", data)
+
+    def delete_liability(self, liability_id: int) -> Dict[str, Any]:
+        """删除负债"""
+        return self._delete(f"/api/v1/core/liabilities/{liability_id}")
+
+    def create_liability_payment(self, liability_id: int, amount: float, payment_date: str, account_id: Optional[int] = None, principal: Optional[float] = None, interest: Optional[float] = None, notes: Optional[str] = None) -> Dict[str, Any]:
+        """记录还款"""
+        data = {"amount": str(amount), "payment_date": payment_date}
+        if account_id: data["account_id"] = account_id
+        if principal is not None: data["principal"] = str(principal)
+        if interest is not None: data["interest"] = str(interest)
+        if notes: data["notes"] = notes
+        return self._post(f"/api/v1/core/liabilities/{liability_id}/payment", data)
+
+    # ============ Phase 2.2: Budget Lifecycle APIs ============
+
+    def update_budget(self, budget_id: int, **kwargs) -> Dict[str, Any]:
+        """更新预算"""
+        data = {k: v for k, v in kwargs.items() if v is not None}
+        return self._put(f"/api/v1/core/budgets/{budget_id}", data)
+
+    def delete_budget(self, budget_id: int) -> Dict[str, Any]:
+        """删除预算"""
+        return self._delete(f"/api/v1/core/budgets/{budget_id}")
+
+    def cancel_budget(self, budget_id: int) -> Dict[str, Any]:
+        """取消预算"""
+        return self._post(f"/api/v1/core/budgets/{budget_id}/cancel")
+
+    # ============ Phase 2.2: Expense Delete API ============
+
+    def delete_expense(self, expense_id: int) -> Dict[str, Any]:
+        """删除支出"""
+        return self._delete(f"/api/v1/core/expenses/{expense_id}")
