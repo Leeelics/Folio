@@ -84,6 +84,39 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
+    # Seed expense categories if table is empty
+    async with AsyncSessionLocal() as session:
+        from sqlalchemy import select, func as sa_func
+
+        count = await session.scalar(
+            select(sa_func.count()).select_from(ExpenseCategory)
+        )
+        if count == 0:
+            seed_categories = {
+                "餐饮": ["早餐", "午餐", "晚餐", "零食饮料", "外卖", "聚餐"],
+                "交通": ["公交地铁", "打车", "共享单车", "加油", "停车费", "高速过路"],
+                "购物": ["日用品", "服饰鞋包", "数码电子", "家居家装", "美妆护肤"],
+                "居住": ["房租", "物业费", "水电燃气", "网络通讯", "维修保养"],
+                "娱乐": ["电影演出", "游戏", "旅行", "运动健身", "书籍"],
+                "医疗": ["门诊", "药品", "体检", "保险"],
+                "教育": ["课程培训", "书籍资料", "考试报名"],
+                "人情": ["礼金红包", "请客送礼", "家庭支出"],
+                "其他": ["手续费", "罚款", "捐赠", "其他支出"],
+            }
+            order = 0
+            for cat, subs in seed_categories.items():
+                for sub in subs:
+                    session.add(
+                        ExpenseCategory(
+                            category=cat,
+                            subcategory=sub,
+                            is_active=True,
+                            sort_order=order,
+                        )
+                    )
+                    order += 1
+            await session.commit()
+
 
 def get_db_session() -> async_sessionmaker[AsyncSession]:
     """Return the async session factory for scripts and background jobs."""

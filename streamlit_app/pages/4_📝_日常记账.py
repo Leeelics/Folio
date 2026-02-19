@@ -1,6 +1,5 @@
 """
-日常记账页面 - Phase 2.2
-支持现金账户和投资账户（从balance扣减）
+日常记账页面 - 表格化批量录入 + 历史管理
 """
 
 import streamlit as st
@@ -24,24 +23,23 @@ def get_api_client():
 api_client = get_api_client()
 
 st.title("📝 日常记账")
-st.markdown("记录日常消费支出")
 st.markdown("---")
 
 
+def _f(val):
+    return float(val or 0)
+
+
 def format_currency(amount, currency="CNY"):
-    """格式化货币显示"""
     symbols = {"CNY": "¥", "USD": "$", "HKD": "HK$"}
     symbol = symbols.get(currency, currency)
     return f"{symbol}{float(amount or 0):,.2f}"
 
 
-def _f(val):
-    """Safely convert API value (may be string/None) to float."""
-    return float(val or 0)
+# ============ Load data ============
 
-
+@st.cache_data(ttl=30)
 def load_accounts():
-    """加载所有账户"""
     try:
         return api_client.get_accounts()
     except Exception as e:
@@ -49,8 +47,8 @@ def load_accounts():
         return []
 
 
+@st.cache_data(ttl=60)
 def load_categories():
-    """加载支出分类"""
     try:
         return api_client.get_categories()
     except Exception as e:
@@ -58,8 +56,8 @@ def load_categories():
         return []
 
 
+@st.cache_data(ttl=30)
 def load_budgets():
-    """加载预算列表"""
     try:
         return api_client.get_budgets(status="active")
     except Exception as e:
@@ -67,258 +65,254 @@ def load_budgets():
         return []
 
 
-def create_expense(data):
-    """创建支出"""
-    try:
-        return api_client.create_expense(**data)
-    except Exception as e:
-        st.error(f"创建支出失败: {e}")
-        return None
+accounts = load_accounts()
+categories = load_categories()
+budgets = load_budgets()
 
+if not accounts:
+    st.warning("请先在账户管理页面添加账户")
+    st.stop()
 
-# ============ 侧边栏 ============
+# Build option maps
+account_map = {a["name"]: a["id"] for a in accounts}
+account_names = list(account_map.keys())
+
+# Build category options: "大类 - 子类"
+cat_options = []
+cat_lookup = {}
+for cat in categories:
+    for sub in cat.get("subcategories", []):
+        label = f"{cat['category']} - {sub}"
+        cat_options.append(label)
+        cat_lookup[label] = (cat["category"], sub)
+
+if not cat_options:
+    cat_options = ["其他 - 其他支出"]
+    cat_lookup["其他 - 其他支出"] = ("其他", "其他支出")
+
+budget_map = {"无": None}
+for b in budgets:
+    remaining = float(b.get("remaining") or 0)
+    label = f"{b['name']} (剩余 ¥{remaining:,.0f})"
+    budget_map[label] = b["id"]
+budget_names = list(budget_map.keys())
+
+payment_methods = ["支付宝", "微信支付", "现金", "银行卡", "信用卡", "其他"]
+
+# ============ Sidebar ============
 with st.sidebar:
     st.header("📝 日常记账")
-    st.info("💡 支持从现金账户和投资账户支出")
-    
-    st.divider()
-    
-    st.subheader("快捷信息")
-    
-    accounts = load_accounts()
     if accounts:
         total_balance = sum(_f(a.get("balance", 0)) for a in accounts)
         st.metric("账户总余额", format_currency(total_balance))
 
+# ============ Batch entry ============
+st.subheader("新增支出")
 
-# 读取预选预算
-budget_id_param = st.query_params.get("budget_id")
+if "new_rows" not in st.session_state:
+    st.session_state.new_rows = pd.DataFrame(
+        [
+            {
+                "金额": 0.0,
+                "账户": account_names[0],
+                "分类": cat_options[0],
+                "日期": date.today(),
+                "商户": "",
+                "支付方式": payment_methods[0],
+                "预算": budget_names[0],
+                "备注": "",
+            }
+        ]
+    )
 
-# ============ 主体表单 ============
-with st.form("expense_form", clear_on_submit=False):
-    st.subheader("💰 账户与金额")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        accounts = load_accounts()
-        if not accounts:
-            st.error("请先添加账户")
-            st.stop()
-        
-        # 分组显示账户
-        cash_accounts = [a for a in accounts if a["account_type"] == "cash"]
-        investment_accounts = [a for a in accounts if a["account_type"] == "investment"]
-        
-        account_options = {}
-        
-        # 现金账户选项
-        for acc in cash_accounts:
-            balance = acc.get("balance", 0)
-            currency = acc.get("currency", "CNY")
-            label = f"💵 {acc['name']} ({format_currency(balance, currency)})"
-            account_options[label] = acc["id"]
-        
-        # 投资账户选项
-        for acc in investment_accounts:
-            balance = acc.get("balance", 0)
-            available_cash = acc.get("available_cash", balance)
-            currency = acc.get("currency", "CNY")
-            label = f"📈 {acc['name']} (可用: {format_currency(available_cash, currency)})"
-            account_options[label] = acc["id"]
-        
-        selected_label = st.selectbox(
-            "支付账户",
-            options=list(account_options.keys()),
-            help="选择支付账户。投资账户显示可用现金（含余额宝等高流动性资产），支出将从账户余额中扣减。",
+edited_df = st.data_editor(
+    st.session_state.new_rows,
+    column_config={
+        "金额": st.column_config.NumberColumn("金额", min_value=0.01, step=1.0, format="%.2f"),
+        "账户": st.column_config.SelectboxColumn("账户", options=account_names, required=True),
+        "分类": st.column_config.SelectboxColumn("分类", options=cat_options, required=True),
+        "日期": st.column_config.DateColumn("日期", default=date.today()),
+        "商户": st.column_config.TextColumn("商户"),
+        "支付方式": st.column_config.SelectboxColumn("支付方式", options=payment_methods),
+        "预算": st.column_config.SelectboxColumn("预算", options=budget_names),
+        "备注": st.column_config.TextColumn("备注"),
+    },
+    num_rows="dynamic",
+    use_container_width=True,
+    key="expense_editor",
+)
+
+col_submit, col_clear = st.columns([1, 1])
+with col_submit:
+    submit = st.button("批量提交", type="primary", use_container_width=True)
+with col_clear:
+    if st.button("清空", use_container_width=True):
+        st.session_state.new_rows = pd.DataFrame(
+            [
+                {
+                    "金额": 0.0,
+                    "账户": account_names[0],
+                    "分类": cat_options[0],
+                    "日期": date.today(),
+                    "商户": "",
+                    "支付方式": payment_methods[0],
+                    "预算": budget_names[0],
+                    "备注": "",
+                }
+            ]
         )
-        account_id = account_options[selected_label]
-        
-        # 显示选中账户的详细信息
-        selected_account = next((a for a in accounts if a["id"] == account_id), None)
-        if selected_account:
-            if selected_account["account_type"] == "investment":
-                st.caption("💡 从投资账户支出将从余额扣减，不影响持仓。如需使用余额宝，请先转出到余额。")
-    
-    with col2:
-        amount = st.number_input("支出金额", min_value=0.01, step=10.0)
-    
-    st.markdown("---")
-    
-    st.subheader("📅 日期与分类")
-    
-    col3, col4 = st.columns(2)
-    
-    with col3:
-        expense_date = st.date_input("支出日期", value=date.today())
-    
-    with col4:
-        categories = load_categories()
-        if categories:
-            category_options = {}
-            for cat in categories:
-                subcats = cat.get("subcategories", [])
-                for sub in subcats:
-                    label = f"{cat['category']} - {sub}"
-                    category_options[label] = {
-                        "category": cat["category"],
-                        "subcategory": sub,
-                    }
-            
-            selected_cat = st.selectbox(
-                "支出分类",
-                options=list(category_options.keys()),
-            )
-            category = category_options[selected_cat]["category"]
-            subcategory = category_options[selected_cat]["subcategory"]
-        else:
-            category = "其他"
-            subcategory = None
-    
-    st.markdown("---")
-    
-    st.subheader("📋 其他信息")
-    
-    col5, col6 = st.columns(2)
-    
-    with col5:
-        merchant = st.text_input("商家/地点", placeholder="如: 麦当劳、星巴克")
-    
-    with col6:
-        payment_method = st.selectbox(
-            "支付方式",
-            options=["现金", "支付宝", "微信支付", "银行卡", "信用卡", "其他"],
-        )
-    
-    # 关联预算（可选）
-    budgets = load_budgets()
-    if budgets:
-        budget_options = {f"{b['name']} (剩余: ¥{float(b['remaining'] or 0):,.0f})": b["id"] for b in budgets}
-        
-        # 预选预算
-        default_index = 0
-        if budget_id_param:
-            for idx, (label, bid) in enumerate(budget_options.items(), start=1):
-                if str(bid) == str(budget_id_param):
-                    default_index = idx
-                    break
-        
-        budget_label = st.selectbox(
-            "关联预算（可选）",
-            options=["不关联预算"] + list(budget_options.keys()),
-            index=default_index,
-        )
-        if budget_label == "不关联预算":
-            budget_id = None
-        else:
-            budget_id = budget_options[budget_label]
+        st.rerun()
+
+if submit:
+    valid_rows = edited_df[edited_df["金额"] > 0]
+    if valid_rows.empty:
+        st.warning("没有有效的支出记录（金额需大于0）")
     else:
-        budget_id = None
-        st.caption("💡 暂无进行中的预算")
-    
-    is_shared = st.checkbox("共同开销", value=False)
-    
-    notes = st.text_area("备注", placeholder="添加其他说明...")
-    
-    submitted = st.form_submit_button("💾 记录支出", type="primary", use_container_width=True)
+        success_count = 0
+        errors = []
+        for _, row in valid_rows.iterrows():
+            cat_key = row["分类"]
+            category, subcategory = cat_lookup.get(cat_key, ("其他", None))
+            account_id = account_map.get(row["账户"])
+            budget_label = row.get("预算", "无")
+            budget_id = budget_map.get(budget_label)
 
+            expense_date = row["日期"]
+            if isinstance(expense_date, datetime):
+                expense_date = expense_date.date()
 
-# ============ 提交处理 ============
-if submitted:
-    if amount <= 0:
-        st.error("支出金额必须大于0")
-    elif not selected_label:
-        st.error("请选择支付账户")
-    else:
-        # 检查账户余额
-        account = next((a for a in accounts if a["id"] == account_id), None)
-        if account and _f(account["balance"]) < amount:
-            if account["account_type"] == "investment":
-                available = account.get("available_cash", 0)
-                st.error(
-                    f"账户余额不足！当前余额: {format_currency(account['balance'])}，"
-                    f"可用现金: {format_currency(available)}。"
-                    f"如需使用余额宝等高流动性资产，请先转出到余额。"
-                )
-            else:
-                st.error(f"账户余额不足！当前余额: {format_currency(account['balance'])}")
-        else:
-            # 创建支出
-            result = create_expense({
+            data = {
                 "account_id": account_id,
-                "budget_id": budget_id,
-                "amount": amount,
+                "amount": float(row["金额"]),
                 "expense_date": str(expense_date),
                 "category": category,
                 "subcategory": subcategory,
-                "merchant": merchant if merchant else None,
-                "payment_method": payment_method,
-                "notes": notes if notes else None,
-            })
-            
-            if result:
-                st.success(f"✅ 支出记录成功！")
-                
-                # 显示详细信息
-                with st.expander("查看详情", expanded=True):
-                    st.write(f"**账户**: {selected_account['name']}")
-                    st.write(f"**金额**: {format_currency(amount)}")
-                    st.write(f"**分类**: {category} - {subcategory}")
-                    if merchant:
-                        st.write(f"**商家**: {merchant}")
-                    if budget_id:
-                        st.write(f"**预算**: {budget_label}")
-                
-                # 清空表单
-                st.cache_data.clear()
+                "merchant": row["商户"] if row["商户"] else None,
+                "payment_method": row["支付方式"] if row["支付方式"] else None,
+                "notes": row["备注"] if row["备注"] else None,
+            }
+            if budget_id:
+                data["budget_id"] = budget_id
 
+            try:
+                api_client.create_expense(**data)
+                success_count += 1
+            except Exception as e:
+                errors.append(f"第{_ + 1}行: {e}")
 
-# ============ 最近支出 ============
+        if success_count:
+            st.success(f"成功提交 {success_count} 笔支出")
+            st.cache_data.clear()
+            # Reset the editor
+            st.session_state.new_rows = pd.DataFrame(
+                [
+                    {
+                        "金额": 0.0,
+                        "账户": account_names[0],
+                        "分类": cat_options[0],
+                        "日期": date.today(),
+                        "商户": "",
+                        "支付方式": payment_methods[0],
+                        "预算": budget_names[0],
+                        "备注": "",
+                    }
+                ]
+            )
+            st.rerun()
+        for err in errors:
+            st.error(err)
+
+# ============ History ============
 st.markdown("---")
-st.subheader("📋 最近支出")
+st.subheader("支出历史")
 
-col_filter1, col_filter2 = st.columns(2)
-with col_filter1:
-    start_date = st.date_input("开始日期", value=date.today() - timedelta(days=30))
-with col_filter2:
-    end_date = st.date_input("结束日期", value=date.today())
+col_f1, col_f2 = st.columns(2)
+with col_f1:
+    start_date = st.date_input("开始日期", value=date.today() - timedelta(days=30), key="hist_start")
+with col_f2:
+    end_date = st.date_input("结束日期", value=date.today(), key="hist_end")
 
 try:
-    expenses = api_client.get_expenses()
-    
-    # 过滤日期范围
-    filtered_expenses = []
-    for e in expenses:
-        exp_date = datetime.strptime(e.get("expense_date", ""), "%Y-%m-%d").date()
-        if start_date <= exp_date <= end_date:
-            filtered_expenses.append(e)
-    
-    filtered_expenses = filtered_expenses[:10]  # 最近10笔
-    
-    if filtered_expenses:
-        expense_data = []
-        for e in filtered_expenses:
-            expense_data.append({
-                "日期": e.get("expense_date", ""),
-                "金额": format_currency(float(e.get("amount", 0))),
-                "分类": f"{e.get('category', '')}{'-'+e.get('subcategory','') if e.get('subcategory') else ''}",
-                "商家": e.get("merchant", "-"),
-                "ID": e.get("id"),
-            })
-        
-        for idx, row in enumerate(expense_data):
-            col_info, col_action = st.columns([5, 1])
-            with col_info:
-                st.text(f"{row['日期']} | {row['金额']} | {row['分类']} | {row['商家']}")
-            with col_action:
-                if st.button("删除", key=f"del_{row['ID']}"):
+    all_expenses = api_client.get_expenses()
+
+    # Filter by date range
+    filtered = []
+    for e in all_expenses:
+        try:
+            exp_date = datetime.strptime(e.get("expense_date", ""), "%Y-%m-%d").date()
+            if start_date <= exp_date <= end_date:
+                filtered.append(e)
+        except (ValueError, TypeError):
+            continue
+
+    if filtered:
+        # Build account id->name map
+        acc_id_name = {a["id"]: a["name"] for a in accounts}
+        # Build budget id->name map
+        budget_id_name = {b["id"]: b["name"] for b in budgets}
+
+        history_data = []
+        for e in filtered:
+            cat_display = e.get("category", "")
+            if e.get("subcategory"):
+                cat_display += f" - {e['subcategory']}"
+            history_data.append(
+                {
+                    "选择": False,
+                    "ID": e["id"],
+                    "日期": e.get("expense_date", ""),
+                    "金额": float(e.get("amount", 0)),
+                    "分类": cat_display,
+                    "商户": e.get("merchant") or "",
+                    "支付方式": e.get("payment_method") or "",
+                    "账户": acc_id_name.get(e.get("account_id"), ""),
+                    "预算": budget_id_name.get(e.get("budget_id"), "") if e.get("budget_id") else "",
+                    "备注": e.get("notes") or "",
+                }
+            )
+
+        hist_df = pd.DataFrame(history_data)
+
+        edited_hist = st.data_editor(
+            hist_df,
+            column_config={
+                "选择": st.column_config.CheckboxColumn("选择", default=False),
+                "ID": st.column_config.NumberColumn("ID", disabled=True),
+                "日期": st.column_config.TextColumn("日期", disabled=True),
+                "金额": st.column_config.NumberColumn("金额", format="%.2f", disabled=True),
+                "分类": st.column_config.TextColumn("分类", disabled=True),
+                "商户": st.column_config.TextColumn("商户", disabled=True),
+                "支付方式": st.column_config.TextColumn("支付方式", disabled=True),
+                "账户": st.column_config.TextColumn("账户", disabled=True),
+                "预算": st.column_config.TextColumn("预算", disabled=True),
+                "备注": st.column_config.TextColumn("备注", disabled=True),
+            },
+            disabled=["ID", "日期", "金额", "分类", "商户", "支付方式", "账户", "预算", "备注"],
+            hide_index=True,
+            use_container_width=True,
+            key="history_editor",
+        )
+
+        selected = edited_hist[edited_hist["选择"] == True]
+        if not selected.empty:
+            if st.button(f"删除选中的 {len(selected)} 笔记录", type="primary"):
+                del_ok = 0
+                del_err = []
+                for _, row in selected.iterrows():
                     try:
-                        api_client.delete_expense(row['ID'])
-                        st.success("删除成功")
-                        st.rerun()
+                        api_client.delete_expense(int(row["ID"]))
+                        del_ok += 1
                     except Exception as e:
-                        st.error(f"删除失败: {e}")
+                        del_err.append(f"ID {row['ID']}: {e}")
+                if del_ok:
+                    st.success(f"成功删除 {del_ok} 笔记录")
+                    st.cache_data.clear()
+                    st.rerun()
+                for err in del_err:
+                    st.error(err)
+
+        st.caption(f"共 {len(filtered)} 笔记录，合计 {format_currency(sum(float(e.get('amount', 0)) for e in filtered))}")
     else:
-        st.info("暂无支出记录")
+        st.info("该日期范围内暂无支出记录")
 except Exception as e:
     st.error(f"加载支出记录失败: {e}")
