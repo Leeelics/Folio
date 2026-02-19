@@ -908,3 +908,13 @@ class EquilibraAPIClient:
     def delete_expense(self, expense_id: int) -> Dict[str, Any]:
         """删除支出"""
         return self._delete(f"/api/v1/core/expenses/{expense_id}")
+
+    # ============ Phase 3: Portfolio & PnL APIs ============
+
+    def get_portfolio(self) -> Dict[str, Any]:
+        """获取投资组合汇总（持仓列表、总市值、分配比例）"""
+        return self._get("/api/v1/investments/portfolio")
+
+    def get_pnl_analysis(self) -> Dict[str, Any]:
+        """获取盈亏分析（成本、现价、盈亏额、盈亏率）"""
+        return self._get("/api/v1/investments/pnl-analysis")
