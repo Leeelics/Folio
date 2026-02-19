@@ -995,36 +995,81 @@ async def list_transfers(
 # ============ Market Sync API ============
 
 
+def _resolve_market(holding: Holding) -> "Optional[Market]":
+    """根据持仓的 market / asset_type / symbol 推断 StockClient Market 枚举"""
+    from app.services.stock_client import Market
+
+    market_str = (holding.market or "").strip()
+    # 直接匹配
+    mapping = {"A股": Market.A_SHARE, "港股": Market.HK, "美股": Market.US}
+    if market_str in mapping:
+        return mapping[market_str]
+
+    # 按 asset_type 排除非股票类
+    if holding.asset_type in ("money_market", "crypto"):
+        return None
+
+    # 根据 symbol 格式猜测
+    sym = holding.symbol.strip()
+    if sym.isdigit():
+        if len(sym) <= 5:
+            return Market.HK
+        return Market.A_SHARE
+    if sym.isalpha():
+        return Market.US
+
+    return None
+
+
 @router.post("/holdings/sync")
 async def sync_holdings_value(db: AsyncSession = Depends(get_db)):
     """
     同步所有持仓市值
-    Phase 2.1: 使用模拟价格更新（Phase 3接入真实数据源）
+    Phase 3: 使用 AkShare 真实行情数据
     """
+    from app.services.stock_client import StockClient
+
+    client = StockClient()
+
     # 获取所有活跃持仓
     stmt = select(Holding).where(Holding.is_active == True)
     result = await db.execute(stmt)
     holdings = result.scalars().all()
 
     synced_count = 0
+    failed_count = 0
     total_value = Decimal("0")
+    errors = []
 
     for holding in holdings:
-        # Phase 2.1: 模拟价格更新
-        # 实际应该调用外部API获取实时价格
-        if holding.current_price:
-            # 模拟价格波动（±2%）
-            import random
+        market = _resolve_market(holding)
+        if market is None:
+            # 无法确定市场的持仓（如货币基金、加密货币），保留现有价格
+            if holding.current_value:
+                total_value += holding.current_value
+            continue
 
-            price_change = Decimal(str(random.uniform(-0.02, 0.02)))
-            new_price = holding.current_price * (Decimal("1") + price_change)
+        try:
+            quote = await client.fetch_realtime_quote(holding.symbol, market)
+            if quote and quote.current_price > 0:
+                holding.current_price = quote.current_price
+                holding.current_value = (holding.quantity * quote.current_price).quantize(Decimal("0.01"))
+                holding.last_sync_at = datetime.now()
+                holding.updated_at = datetime.now()
 
-            holding.current_price = new_price.quantize(Decimal("0.0001"))
-            holding.current_value = (holding.quantity * new_price).quantize(Decimal("0.01"))
-            holding.updated_at = datetime.now()
-
-            total_value += holding.current_value
-            synced_count += 1
+                total_value += holding.current_value
+                synced_count += 1
+            else:
+                # 行情未获取到，保留现有价格
+                if holding.current_value:
+                    total_value += holding.current_value
+                failed_count += 1
+                errors.append(f"{holding.symbol}: 未获取到行情")
+        except Exception as e:
+            if holding.current_value:
+                total_value += holding.current_value
+            failed_count += 1
+            errors.append(f"{holding.symbol}: {str(e)[:100]}")
 
     # 更新账户的持仓市值缓存
     account_ids = set(h.account_id for h in holdings)
@@ -1041,8 +1086,8 @@ async def sync_holdings_value(db: AsyncSession = Depends(get_db)):
     sync_log = MarketSyncLog(
         total_value=total_value,
         holdings_count=synced_count,
-        status="success",
-        details={"method": "simulation"},
+        status="success" if failed_count == 0 else "partial",
+        details={"method": "akshare", "failed": failed_count, "errors": errors[:10]},
     )
     db.add(sync_log)
     await db.commit()
@@ -1050,6 +1095,7 @@ async def sync_holdings_value(db: AsyncSession = Depends(get_db)):
     return {
         "message": "市值同步完成",
         "synced_count": synced_count,
+        "failed_count": failed_count,
         "total_value": total_value,
         "synced_at": datetime.now(),
     }

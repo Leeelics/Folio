@@ -1,4 +1,4 @@
-"""投资 API 路由 - 交易记录、持仓管理、基金产品"""
+"""投资 API 路由 - 交易记录、持仓管理、基金产品、投资组合"""
 
 import logging
 from datetime import datetime
@@ -7,10 +7,14 @@ from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.core import Holding
+from app.models.investment import InvestmentHolding, InvestmentTransaction
 from app.services.investment_manager import InvestmentManager
+from app.services.stock_client import Market, StockClient
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/investments", tags=["投资管理"])
@@ -396,3 +400,169 @@ async def update_fund_nav(
     if not product:
         raise HTTPException(status_code=404, detail="产品不存在")
     return product
+
+
+# ============ 投资组合 API (Phase 3) ============
+
+
+def _resolve_holding_market(holding: "Holding | InvestmentHolding") -> Optional[Market]:
+    """从持仓记录推断 Market 枚举（兼容 Holding 和 InvestmentHolding）"""
+    market_str = getattr(holding, "market", None) or ""
+    market_str = market_str.strip()
+    mapping = {"A股": Market.A_SHARE, "港股": Market.HK, "美股": Market.US}
+    if market_str in mapping:
+        return mapping[market_str]
+
+    asset_type = getattr(holding, "asset_type", "")
+    if asset_type in ("money_market", "crypto"):
+        return None
+
+    sym = (holding.symbol or "").strip()
+    if sym.isdigit():
+        return Market.HK if len(sym) <= 5 else Market.A_SHARE
+    if sym.isalpha():
+        return Market.US
+    return None
+
+
+@router.get("/portfolio")
+async def get_portfolio(db: AsyncSession = Depends(get_db)):
+    """
+    获取投资组合概览
+    汇总 InvestmentHolding + Holding 数据，返回持仓列表、总市值、分配比例
+    """
+    client = StockClient()
+
+    # 1. 从 InvestmentHolding 获取交易系统的持仓
+    stmt = select(InvestmentHolding).where(InvestmentHolding.quantity > 0)
+    result = await db.execute(stmt)
+    inv_holdings = list(result.scalars().all())
+
+    # 2. 从 Holding (core) 获取手动录入的持仓
+    stmt = select(Holding).where(and_(Holding.is_active == True, Holding.quantity > 0))
+    result = await db.execute(stmt)
+    core_holdings = list(result.scalars().all())
+
+    # 3. 合并去重（以 symbol 为 key，InvestmentHolding 优先）
+    seen_symbols = set()
+    holdings_list = []
+
+    for h in inv_holdings:
+        market = _resolve_holding_market(h)
+        current_price = Decimal("0")
+        if market:
+            try:
+                quote = await client.fetch_realtime_quote(h.symbol, market)
+                if quote and quote.current_price > 0:
+                    current_price = quote.current_price
+            except Exception:
+                pass
+
+        market_value = (h.quantity * current_price).quantize(Decimal("0.01")) if current_price > 0 else Decimal("0")
+
+        holdings_list.append({
+            "symbol": h.symbol,
+            "name": h.name or h.symbol,
+            "asset_type": h.asset_type,
+            "quantity": float(h.quantity),
+            "avg_cost": float(h.avg_cost),
+            "current_price": float(current_price),
+            "market_value": float(market_value),
+            "allocation_pct": 0,  # 后面计算
+            "source": "investment",
+        })
+        seen_symbols.add(h.symbol.upper())
+
+    for h in core_holdings:
+        if h.symbol.upper() in seen_symbols:
+            continue
+
+        current_price = h.current_price or Decimal("0")
+        market_value = h.current_value or (h.quantity * current_price if current_price else Decimal("0"))
+
+        holdings_list.append({
+            "symbol": h.symbol,
+            "name": h.name or h.symbol,
+            "asset_type": h.asset_type,
+            "quantity": float(h.quantity),
+            "avg_cost": float(h.avg_cost),
+            "current_price": float(current_price),
+            "market_value": float(market_value),
+            "allocation_pct": 0,
+            "source": "core",
+        })
+
+    # 4. 计算总市值和分配比例
+    total_value = sum(item["market_value"] for item in holdings_list)
+    for item in holdings_list:
+        if total_value > 0:
+            item["allocation_pct"] = round(item["market_value"] / total_value * 100, 2)
+
+    return {
+        "total_value": total_value,
+        "holdings_count": len(holdings_list),
+        "holdings": holdings_list,
+    }
+
+
+@router.get("/pnl-analysis")
+async def get_pnl_analysis(db: AsyncSession = Depends(get_db)):
+    """
+    获取盈亏分析
+    基于 InvestmentTransaction 计算每个持仓的成本、现价、盈亏额、盈亏率
+    """
+    client = StockClient()
+
+    # 获取有持仓的 InvestmentHolding
+    stmt = select(InvestmentHolding).where(InvestmentHolding.quantity > 0)
+    result = await db.execute(stmt)
+    holdings = list(result.scalars().all())
+
+    total_cost = Decimal("0")
+    total_value = Decimal("0")
+    holdings_pnl = []
+
+    for h in holdings:
+        cost_basis = h.total_cost or Decimal("0")
+        total_cost += cost_basis
+
+        # 获取当前价格
+        market = _resolve_holding_market(h)
+        current_price = Decimal("0")
+        if market:
+            try:
+                quote = await client.fetch_realtime_quote(h.symbol, market)
+                if quote and quote.current_price > 0:
+                    current_price = quote.current_price
+            except Exception:
+                pass
+
+        current_value = (h.quantity * current_price).quantize(Decimal("0.01")) if current_price > 0 else Decimal("0")
+        total_value += current_value
+
+        pnl = current_value - cost_basis
+        pnl_pct = float((pnl / cost_basis * 100).quantize(Decimal("0.01"))) if cost_basis > 0 else 0
+
+        holdings_pnl.append({
+            "symbol": h.symbol,
+            "name": h.name or h.symbol,
+            "asset_type": h.asset_type,
+            "quantity": float(h.quantity),
+            "avg_cost": float(h.avg_cost),
+            "cost_basis": float(cost_basis),
+            "current_price": float(current_price),
+            "current_value": float(current_value),
+            "pnl": float(pnl),
+            "pnl_pct": pnl_pct,
+        })
+
+    total_pnl = total_value - total_cost
+    total_pnl_pct = float((total_pnl / total_cost * 100).quantize(Decimal("0.01"))) if total_cost > 0 else 0
+
+    return {
+        "total_cost": float(total_cost),
+        "total_value": float(total_value),
+        "total_pnl": float(total_pnl),
+        "total_pnl_pct": total_pnl_pct,
+        "holdings": holdings_pnl,
+    }
