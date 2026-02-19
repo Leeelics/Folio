@@ -42,5 +42,9 @@ wheels/
 .DS_Store
 Thumbs.db
 
+# AI / Agent tooling
+.claude/
+.opencode/
+
 # Docker
 docker-compose.override.yml
