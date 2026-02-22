@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "0.5.x"
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Check formatting with Black
+        run: uv run black --check app/ streamlit_app/ tests/
+
+      - name: Lint with Ruff
+        run: uv run ruff check app/ streamlit_app/ tests/
+
+      - name: Type check with mypy
+        run: uv run mypy app/
+
+      - name: Run unit tests
+        run: uv run pytest tests/test_api.py tests/test_models.py -v --tb=short
+
+      - name: Check Docker Compose configuration
+        run: docker-compose config > /dev/null

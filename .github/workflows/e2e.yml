@@ -1,0 +1,69 @@
+name: E2E Tests
+
+on:
+  workflow_dispatch: # 手动触发
+  schedule:
+    - cron: "0 0 * * 0" # 每周日运行
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "streamlit_app/**"
+      - "tests/test_e2e.py"
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "0.5.x"
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Install Playwright browsers
+        run: uv run playwright install chromium
+
+      - name: Start backend server
+        run: |
+          export DATABASE_URL="sqlite+aiosqlite:///./test.db"
+          uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 &
+          echo "BACKEND_PID=$!" >> $GITHUB_ENV
+          sleep 5
+          curl -f http://127.0.0.1:8000/health || exit 1
+
+      - name: Start Streamlit frontend
+        run: |
+          export API_URL="http://127.0.0.1:8000"
+          cd streamlit_app && uv run streamlit run Home.py --server.port 8501 &
+          echo "FRONTEND_PID=$!" >> $GITHUB_ENV
+          sleep 10
+
+      - name: Run E2E tests
+        run: uv run pytest tests/test_e2e.py -v --tb=short
+
+      - name: Upload screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: tests/screenshots/
+          retention-days: 7
+
+      - name: Cleanup
+        if: always()
+        run: |
+          kill $BACKEND_PID || true
+          kill $FRONTEND_PID || true

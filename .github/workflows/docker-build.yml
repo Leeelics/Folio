@@ -1,0 +1,45 @@
+name: Docker Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+    paths:
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "app/**"
+      - "pyproject.toml"
+
+jobs:
+  build-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: folio-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-streamlit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Streamlit Docker image
+        run: |
+          docker build -f Dockerfile.streamlit -t folio-streamlit:latest .
+        # 如果将来有 Dockerfile.streamlit，取消注释上面的命令
