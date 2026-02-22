@@ -10,7 +10,7 @@ import sys
 import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from api_client import EquilibraAPIClient
+from api_client import FolioAPIClient
 
 st.set_page_config(page_title="账户管理", page_icon="💰", layout="wide")
 
@@ -18,13 +18,24 @@ st.set_page_config(page_title="账户管理", page_icon="💰", layout="wide")
 @st.cache_resource
 def get_api_client():
     api_url = os.getenv("API_URL", "http://localhost:8000")
-    return EquilibraAPIClient(base_url=api_url)
+    return FolioAPIClient(base_url=api_url)
 
 
 api_client = get_api_client()
 
 st.title("💰 账户管理")
 st.markdown("管理您的所有账户，支持现金账户、投资账户和持仓管理")
+
+# 显示同步结果（持久化）
+if "sync_result" in st.session_state:
+    result = st.session_state.pop("sync_result")
+    synced = result.get("synced_count", 0)
+    failed = result.get("failed_count", 0)
+    if failed > 0:
+        st.warning(f"同步完成：成功 {synced} 个，失败 {failed} 个")
+    else:
+        st.success(f"同步完成：{synced} 个持仓已更新")
+
 st.markdown("---")
 
 
@@ -118,8 +129,9 @@ with st.sidebar:
         with st.spinner("同步中..."):
             result = sync_holdings()
             if result:
-                st.success(f"同步完成：{result.get('synced_count', 0)} 个持仓")
+                st.session_state["sync_result"] = result
                 st.cache_data.clear()
+                st.rerun()
 
     if st.button("➕ 添加负债", use_container_width=True):
         st.session_state["show_create_liability"] = True
@@ -278,13 +290,13 @@ if st.session_state["show_add_holding"]:
 
             col1, col2 = st.columns(2)
             with col1:
-                quantity = st.number_input("数量", min_value=0.0, step=1.0)
+                quantity = st.number_input("数量", min_value=0.0, step=0.0001, format="%.4f")
             with col2:
-                avg_cost = st.number_input("成本价", min_value=0.0, step=0.01)
+                avg_cost = st.number_input("成本价", min_value=0.0, step=0.0001, format="%.4f")
 
             col3, col4 = st.columns(2)
             with col3:
-                current_price = st.number_input("当前价格", min_value=0.0, step=0.01)
+                current_price = st.number_input("当前价格", min_value=0.0, step=0.0001, format="%.4f")
             with col4:
                 current_value = st.number_input("当前市值", min_value=0.0, step=100.0)
 
@@ -506,14 +518,29 @@ if cash_accounts:
                 account_number = account.get("account_number", "")
                 st.text(f"账号: {account_number}")
 
-            if st.button("🗑️ 删除账户", key=f"del_acc_{account['id']}"):
-                try:
-                    api_client.delete_account(account["id"])
-                    st.success("账户已删除")
-                    st.cache_data.clear()
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"删除失败: {e}")
+            with st.expander("⚠️ 危险操作", expanded=False):
+                confirm_key = f"confirm_del_cash_{account['id']}"
+                if st.session_state.get(confirm_key):
+                    st.warning("确定要删除此账户吗？此操作不可撤销。")
+                    col_yes, col_no = st.columns(2)
+                    with col_yes:
+                        if st.button("确认删除", key=f"yes_del_cash_{account['id']}", type="primary"):
+                            try:
+                                api_client.delete_account(account["id"])
+                                st.session_state.pop(confirm_key, None)
+                                st.success("账户已删除")
+                                st.cache_data.clear()
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"删除失败: {e}")
+                    with col_no:
+                        if st.button("取消", key=f"no_del_cash_{account['id']}"):
+                            st.session_state.pop(confirm_key, None)
+                            st.rerun()
+                else:
+                    if st.button("🗑️ 删除账户", key=f"del_acc_{account['id']}"):
+                        st.session_state[confirm_key] = True
+                        st.rerun()
 else:
     st.info("暂无现金账户")
 
@@ -583,16 +610,31 @@ if investment_accounts:
                 st.info("暂无持仓")
 
             # 删除账户按钮
-            if account_holdings:
-                st.warning("⚠️ 该账户有持仓，删除将同时清除所有持仓记录")
-            if st.button("🗑️ 删除账户", key=f"del_acc_{account['id']}"):
-                try:
-                    api_client.delete_account(account["id"])
-                    st.success("账户已删除")
-                    st.cache_data.clear()
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"删除失败: {e}")
+            with st.expander("⚠️ 危险操作", expanded=False):
+                if account_holdings:
+                    st.warning("⚠️ 该账户有持仓，删除将同时清除所有持仓记录")
+                confirm_key = f"confirm_del_inv_{account['id']}"
+                if st.session_state.get(confirm_key):
+                    st.error("确定要删除此账户吗？此操作不可撤销。")
+                    col_yes, col_no = st.columns(2)
+                    with col_yes:
+                        if st.button("确认删除", key=f"yes_del_inv_{account['id']}", type="primary"):
+                            try:
+                                api_client.delete_account(account["id"])
+                                st.session_state.pop(confirm_key, None)
+                                st.success("账户已删除")
+                                st.cache_data.clear()
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"删除失败: {e}")
+                    with col_no:
+                        if st.button("取消", key=f"no_del_inv_{account['id']}"):
+                            st.session_state.pop(confirm_key, None)
+                            st.rerun()
+                else:
+                    if st.button("🗑️ 删除账户", key=f"del_acc_{account['id']}"):
+                        st.session_state[confirm_key] = True
+                        st.rerun()
 else:
     st.info("暂无投资账户")
 

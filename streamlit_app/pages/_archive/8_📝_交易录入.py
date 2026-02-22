@@ -3,14 +3,14 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date
-from streamlit_app.api_client import EquilibraAPIClient
+from streamlit_app.api_client import FolioAPIClient
 
-st.set_page_config(page_title="交易录入 - Equilibra", page_icon="📝", layout="wide")
+st.set_page_config(page_title="交易录入 - Folio", page_icon="📝", layout="wide")
 
 # 初始化 API 客户端
 @st.cache_resource
 def get_api_client():
-    return EquilibraAPIClient()
+    return FolioAPIClient()
 
 client = get_api_client()
 

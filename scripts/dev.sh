@@ -1,5 +1,5 @@
 #!/bin/bash
-# Equilibra - 开发模式启动脚本（后端 + 前端）
+# Folio - 开发模式启动脚本（后端 + 前端）
 # 用法: bash scripts/dev.sh [backend|frontend|all]
 # 默认启动全部
 

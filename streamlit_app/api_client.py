@@ -6,7 +6,7 @@ import os
 logger = logging.getLogger(__name__)
 
 
-class EquilibraAPIClient:
+class FolioAPIClient:
     """FastAPI 后端客户端"""
 
     def __init__(self, base_url: str | None = None, timeout_s: float | None = None):

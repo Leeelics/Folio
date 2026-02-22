@@ -1,9 +1,9 @@
 import streamlit as st
-from api_client import EquilibraAPIClient
+from api_client import FolioAPIClient
 import os
 
 st.set_page_config(
-    page_title="Equilibra - 个人财务管理系统",
+    page_title="Folio - 个人财务管理系统",
     page_icon="💰",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -13,7 +13,7 @@ st.set_page_config(
 @st.cache_resource
 def get_api_client():
     api_url = os.getenv("API_URL", "http://localhost:8000")
-    return EquilibraAPIClient(base_url=api_url)
+    return FolioAPIClient(base_url=api_url)
 
 
 api_client = get_api_client()
@@ -27,7 +27,7 @@ def format_currency(amount, currency="CNY"):
 
 # 侧边栏
 with st.sidebar:
-    st.title("💰 Equilibra")
+    st.title("💰 Folio")
     st.markdown("---")
     st.markdown("### 个人财务管理系统")
     st.markdown(
@@ -49,7 +49,7 @@ with st.sidebar:
         st.error(f"后端连接失败: {str(e)}")
 
 # 主页面
-st.title("Equilibra")
+st.title("Folio")
 st.markdown("个人财务管理系统")
 
 # 核心指标
@@ -136,7 +136,7 @@ with col6:
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: gray;'>"
-    "<p>Equilibra v2.0 | FastAPI + Streamlit</p>"
+    "<p>Folio v2.0 | FastAPI + Streamlit</p>"
     "</div>",
     unsafe_allow_html=True,
 )

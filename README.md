@@ -1,4 +1,4 @@
-# Equilibra - Personal Financial Management System
+# Folio - Personal Financial Management System
 
 个人财务管理系统后端原型，集成 OKX、A/H 股数据、AI 分析与风险控制。
 
@@ -14,7 +14,7 @@
 ## 项目结构
 
 ```
-Equilibra/
+Folio/
 ├── app/
 │   ├── __init__.py
 │   ├── main.py                 # FastAPI 应用入口
@@ -255,7 +255,7 @@ uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ```bash
 # 进入 PostgreSQL 容器
-docker-compose exec postgres psql -U equilibra -d equilibra_db
+docker-compose exec postgres psql -U folio -d folio_db
 
 # 查看表结构
 \dt

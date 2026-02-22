@@ -5,14 +5,14 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
-from streamlit_app.api_client import EquilibraAPIClient
+from streamlit_app.api_client import FolioAPIClient
 
-st.set_page_config(page_title="股票持仓 - Equilibra", page_icon="💼", layout="wide")
+st.set_page_config(page_title="股票持仓 - Folio", page_icon="💼", layout="wide")
 
 # 初始化 API 客户端
 @st.cache_resource
 def get_api_client():
-    return EquilibraAPIClient()
+    return FolioAPIClient()
 
 client = get_api_client()
 

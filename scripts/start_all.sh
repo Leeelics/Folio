@@ -1,7 +1,7 @@
 #!/bin/bash
-# Equilibra 完整启动脚本
+# Folio 完整启动脚本
 
-echo "=== Equilibra 启动脚本 ==="
+echo "=== Folio 启动脚本 ==="
 echo ""
 
 # 检查端口8000

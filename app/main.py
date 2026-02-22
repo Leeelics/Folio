@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
-    logger.info("Starting Equilibra Financial Management System...")
+    logger.info("Starting Folio Financial Management System...")
     try:
         await init_db()
         logger.info("Database initialized successfully")
@@ -32,12 +32,12 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
-    logger.info("Shutting down Equilibra...")
+    logger.info("Shutting down Folio...")
 
 
 # Create FastAPI application
 app = FastAPI(
-    title="Equilibra - Personal Financial Management System",
+    title="Folio - Personal Financial Management System",
     description="个人财务管理系统后端 API - 集成 OKX、A/H 股、AI 分析",
     version="1.0.0",
     lifespan=lifespan,
@@ -64,7 +64,7 @@ app.include_router(core_router, prefix="/api/v1", tags=["Core Phase 1"])
 async def root():
     """Root endpoint"""
     return {
-        "message": "Welcome to Equilibra Financial Management System",
+        "message": "Welcome to Folio Financial Management System",
         "version": "1.0.0",
         "docs": "/docs",
         "status": "running",
@@ -74,7 +74,7 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy", "service": "equilibra-api"}
+    return {"status": "healthy", "service": "folio-api"}
 
 
 if __name__ == "__main__":

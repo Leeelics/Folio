@@ -1,12 +1,12 @@
 [project]
-name = "equilibra"
+name = "folio"
 version = "1.0.0"
 description = "Personal Financial Management System with AI Analysis"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [
-    { name = "Equilibra Team" }
+    { name = "Folio Team" }
 ]
 keywords = ["finance", "portfolio", "ai", "fastapi", "quantitative"]
 classifiers = [
@@ -52,7 +52,7 @@ dev = [
 ]
 
 [project.scripts]
-equilibra = "app.main:main"
+folio = "app.main:main"
 
 [build-system]
 requires = ["hatchling"]

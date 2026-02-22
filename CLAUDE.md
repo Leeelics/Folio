@@ -1,4 +1,4 @@
-# Equilibra - 个人财务管理系统
+# Folio - 个人财务管理系统
 
 ## 技术栈
 - Backend: FastAPI + SQLAlchemy 2.0 (async) + PostgreSQL
@@ -72,7 +72,7 @@ claude --dangerously-skip-permissions
 | `SIGNAL:FRONTEND_DONE` | Frontend | B1-B4 全部完成，页面可测 |
 | `SIGNAL:TESTING_DONE` | Testing | C1-C3 全部完成，测试通过 |
 
-**轮询方式**: 完成独立任务后，用 `search(query="SIGNAL:XXX_DONE", project="equilibra")` 检查上游信号。如果未找到，等待 30 秒后重试（最多重试 20 次，共约 10 分钟）。
+**轮询方式**: 完成独立任务后，用 `search(query="SIGNAL:XXX_DONE", project="folio")` 检查上游信号。如果未找到，等待 30 秒后重试（最多重试 20 次，共约 10 分钟）。
 
 ---
 
@@ -85,9 +85,9 @@ claude --dangerously-skip-permissions
 读取 CLAUDE.md，我是 Backend 终端。按照 Phase 3 三终端分工执行任务 A1→A2→A3，全程自主完成，不要停下来问我。
 
 工作流程：
-1. search(query="Phase 3 backend", project="equilibra") 检查前序进展
+1. search(query="Phase 3 backend", project="folio") 检查前序进展
 2. 按顺序完成 A1、A2、A3（每个任务用 /tdd 驱动开发，完成后 /python-review）
-3. 全部完成后发送信号: save_memory(text="SIGNAL:BACKEND_DONE - Phase 3 Backend 完成: A1 sync升级用AkShare替换随机模拟, A2 GET /investments/portfolio 端点, A3 GET /investments/pnl-analysis 端点", project="equilibra")
+3. 全部完成后发送信号: save_memory(text="SIGNAL:BACKEND_DONE - Phase 3 Backend 完成: A1 sync升级用AkShare替换随机模拟, A2 GET /investments/portfolio 端点, A3 GET /investments/pnl-analysis 端点", project="folio")
 4. 最后 git add 并提交所有改动
 
 注意：全程不要停下来问我确认，直接按 CLAUDE.md 中的任务列表和接口契约执行。遇到问题自行决策。
@@ -109,12 +109,12 @@ claude --dangerously-skip-permissions
 读取 CLAUDE.md，我是 Frontend 终端。按照 Phase 3 三终端分工执行任务 B1→B2→B3→B4，全程自主完成，不要停下来问我。
 
 工作流程：
-1. search(query="Phase 3 frontend", project="equilibra") 检查前序进展
+1. search(query="Phase 3 frontend", project="folio") 检查前序进展
 2. 立即开始 B1（交易录入页面，不依赖后端）
-3. B1 完成后，轮询等待后端信号: search(query="SIGNAL:BACKEND_DONE", project="equilibra")
+3. B1 完成后，轮询等待后端信号: search(query="SIGNAL:BACKEND_DONE", project="folio")
    - 如果未找到，sleep 30 秒后重试，最多重试 20 次
 4. 收到信号后，先 git pull 拉取后端代码，然后继续 B2→B3→B4
-5. 全部完成后发送信号: save_memory(text="SIGNAL:FRONTEND_DONE - Phase 3 Frontend 完成: B1 交易录入页面, B2 api_client新方法(get_portfolio/get_pnl_analysis), B3 投资组合页面, B4 Home快捷链接", project="equilibra")
+5. 全部完成后发送信号: save_memory(text="SIGNAL:FRONTEND_DONE - Phase 3 Frontend 完成: B1 交易录入页面, B2 api_client新方法(get_portfolio/get_pnl_analysis), B3 投资组合页面, B4 Home快捷链接", project="folio")
 6. 最后 git add 并提交所有改动
 
 注意：全程不要停下来问我确认，直接按 CLAUDE.md 中的任务列表和接口契约执行。遇到问题自行决策。
@@ -137,16 +137,16 @@ claude --dangerously-skip-permissions
 读取 CLAUDE.md，我是 Testing 终端。按照 Phase 3 三终端分工执行任务 C1→C2→C3，全程自主完成，不要停下来问我。
 
 工作流程：
-1. search(query="Phase 3 testing", project="equilibra") 检查前序进展
+1. search(query="Phase 3 testing", project="folio") 检查前序进展
 2. 立即开始 C1（单元测试，mock 数据，不依赖后端）
-3. C1 完成后，轮询等待后端信号: search(query="SIGNAL:BACKEND_DONE", project="equilibra")
+3. C1 完成后，轮询等待后端信号: search(query="SIGNAL:BACKEND_DONE", project="folio")
    - 如果未找到，sleep 30 秒后重试，最多重试 20 次
 4. 收到信号后，先 git pull 拉取后端代码，然后完成 C2（集成测试）
-5. C2 完成后，轮询等待前端信号: search(query="SIGNAL:FRONTEND_DONE", project="equilibra")
+5. C2 完成后，轮询等待前端信号: search(query="SIGNAL:FRONTEND_DONE", project="folio")
    - 同样 sleep 30 秒重试，最多 20 次
 6. 收到信号后，先 git pull 拉取前端代码，然后完成 C3（E2E 测试）
 7. 运行 uv run pytest -v 确认全部通过
-8. 全部完成后发送信号: save_memory(text="SIGNAL:TESTING_DONE - Phase 3 Testing 完成: C1 单元测试, C2 集成测试, C3 E2E测试。全部通过", project="equilibra")
+8. 全部完成后发送信号: save_memory(text="SIGNAL:TESTING_DONE - Phase 3 Testing 完成: C1 单元测试, C2 集成测试, C3 E2E测试。全部通过", project="folio")
 9. 最后 git add 并提交所有改动
 
 注意：全程不要停下来问我确认，直接按 CLAUDE.md 中的任务列表和接口契约执行。遇到问题自行决策。
@@ -264,4 +264,4 @@ uv run pytest -v                               # 运行测试
 - 后端开发: /tdd → /python-review
 - 前端完成后: /e2e
 - 提交前: /security-review
-- 会话结束: 保存进展到 claude-mem (project=equilibra)
+- 会话结束: 保存进展到 claude-mem (project=folio)

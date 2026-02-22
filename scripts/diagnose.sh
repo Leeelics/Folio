@@ -1,7 +1,7 @@
 #!/bin/bash
-# Equilibra 连接诊断脚本
+# Folio 连接诊断脚本
 
-echo "=== Equilibra 连接诊断 ==="
+echo "=== Folio 连接诊断 ==="
 echo ""
 
 # 1. 检查后端服务

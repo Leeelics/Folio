@@ -1,5 +1,5 @@
 #!/bin/bash
-# Equilibra - 一键环境搭建脚本（本地 PostgreSQL）
+# Folio - 一键环境搭建脚本（本地 PostgreSQL）
 # 用法: bash scripts/setup.sh
 
 set -e
@@ -7,7 +7,7 @@ set -e
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_DIR"
 
-echo "=== Equilibra 环境搭建 ==="
+echo "=== Folio 环境搭建 ==="
 echo ""
 
 # ---- 1. 检查基础工具 ----
@@ -76,19 +76,19 @@ echo ""
 echo "5. 检查数据库..."
 
 # 创建用户（如果不存在）
-if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='equilibra'" postgres 2>/dev/null | grep -q 1; then
-    createuser equilibra 2>/dev/null || true
-    echo "   ✅ 创建用户 equilibra"
+if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='folio'" postgres 2>/dev/null | grep -q 1; then
+    createuser folio 2>/dev/null || true
+    echo "   ✅ 创建用户 folio"
 else
-    echo "   ✅ 用户 equilibra 已存在"
+    echo "   ✅ 用户 folio 已存在"
 fi
 
 # 创建数据库（如果不存在）
-if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname='equilibra_db'" postgres 2>/dev/null | grep -q 1; then
-    createdb -O equilibra equilibra_db 2>/dev/null || true
-    echo "   ✅ 创建数据库 equilibra_db"
+if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname='folio_db'" postgres 2>/dev/null | grep -q 1; then
+    createdb -O folio folio_db 2>/dev/null || true
+    echo "   ✅ 创建数据库 folio_db"
 else
-    echo "   ✅ 数据库 equilibra_db 已存在"
+    echo "   ✅ 数据库 folio_db 已存在"
 fi
 
 echo ""

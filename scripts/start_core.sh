@@ -1,7 +1,7 @@
 #!/bin/bash
-# Equilibra 核心功能测试脚本
+# Folio 核心功能测试脚本
 
-echo "=== Equilibra 阶段1核心功能验证 ==="
+echo "=== Folio 阶段1核心功能验证 ==="
 echo ""
 
 # 检查环境

@@ -5,7 +5,7 @@ from datetime import datetime
 
 # 添加父目录到路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from api_client import EquilibraAPIClient
+from api_client import FolioAPIClient
 
 st.set_page_config(page_title="市场新闻", page_icon="📰", layout="wide")
 
@@ -13,7 +13,7 @@ st.set_page_config(page_title="市场新闻", page_icon="📰", layout="wide")
 @st.cache_resource
 def get_api_client():
     api_url = os.getenv("API_URL", "http://localhost:8000")
-    return EquilibraAPIClient(base_url=api_url)
+    return FolioAPIClient(base_url=api_url)
 
 api_client = get_api_client()
 

@@ -3,6 +3,7 @@
 账户管理、预算管理、支出录入
 """
 
+import asyncio
 from datetime import date, datetime
 from decimal import Decimal
 from typing import List, Optional
@@ -1041,35 +1042,44 @@ async def sync_holdings_value(db: AsyncSession = Depends(get_db)):
     total_value = Decimal("0")
     errors = []
 
-    for holding in holdings:
+    # 分离需要行情的持仓和不需要的持仓
+    holdings_to_fetch = []  # (index, holding, market)
+    for i, holding in enumerate(holdings):
         market = _resolve_market(holding)
         if market is None:
             # 无法确定市场的持仓（如货币基金、加密货币），保留现有价格
             if holding.current_value:
                 total_value += holding.current_value
-            continue
+        else:
+            holdings_to_fetch.append((i, holding, market))
 
-        try:
-            quote = await client.fetch_realtime_quote(holding.symbol, market)
-            if quote and quote.current_price > 0:
-                holding.current_price = quote.current_price
-                holding.current_value = (holding.quantity * quote.current_price).quantize(Decimal("0.01"))
-                holding.last_sync_at = datetime.now()
-                holding.updated_at = datetime.now()
+    # 并发获取所有行情
+    async def _fetch_one(holding, market):
+        return await client.fetch_realtime_quote(holding.symbol, market)
 
-                total_value += holding.current_value
-                synced_count += 1
-            else:
-                # 行情未获取到，保留现有价格
-                if holding.current_value:
-                    total_value += holding.current_value
-                failed_count += 1
-                errors.append(f"{holding.symbol}: 未获取到行情")
-        except Exception as e:
+    tasks = [_fetch_one(h, m) for _, h, m in holdings_to_fetch]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for (_, holding, market), result in zip(holdings_to_fetch, results):
+        if isinstance(result, Exception):
             if holding.current_value:
                 total_value += holding.current_value
             failed_count += 1
-            errors.append(f"{holding.symbol}: {str(e)[:100]}")
+            errors.append(f"{holding.symbol}: {str(result)[:100]}")
+        elif result and result.current_price > 0:
+            holding.current_price = result.current_price
+            holding.current_value = (holding.quantity * result.current_price).quantize(Decimal("0.01"))
+            holding.last_sync_at = datetime.now()
+            holding.updated_at = datetime.now()
+
+            total_value += holding.current_value
+            synced_count += 1
+        else:
+            # 行情未获取到，保留现有价格
+            if holding.current_value:
+                total_value += holding.current_value
+            failed_count += 1
+            errors.append(f"{holding.symbol}: 未获取到行情")
 
     # 更新账户的持仓市值缓存
     account_ids = set(h.account_id for h in holdings)

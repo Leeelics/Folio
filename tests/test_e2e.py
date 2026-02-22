@@ -1,5 +1,5 @@
 """
-E2E Tests for Equilibra Phase 1, 2 & 3
+E2E Tests for Folio Phase 1, 2 & 3
 Uses Playwright to test Streamlit frontend + FastAPI backend
 """
 
@@ -177,7 +177,7 @@ class TestStreamlitPages:
         content = page.text_content("[data-testid='stAppViewContainer']")
         assert content is not None
         assert len(content) > 0
-        assert "Equilibra" in content
+        assert "Folio" in content
         assert "快速导航" in content
 
     def test_asset_overview_page(self, page):

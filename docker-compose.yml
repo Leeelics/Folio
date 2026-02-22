@@ -1,29 +1,29 @@
 services:
   postgres:
     image: ankane/pgvector:latest
-    container_name: equilibra_postgres
+    container_name: folio_postgres
     environment:
-      POSTGRES_USER: equilibra
-      POSTGRES_PASSWORD: equilibra_password
-      POSTGRES_DB: equilibra_db
+      POSTGRES_USER: folio
+      POSTGRES_PASSWORD: folio_password
+      POSTGRES_DB: folio_db
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U equilibra"]
+      test: ["CMD-SHELL", "pg_isready -U folio"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   app:
     build: .
-    container_name: equilibra_app
+    container_name: folio_app
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://equilibra:equilibra_password@postgres:5432/equilibra_db
+      - DATABASE_URL=postgresql+asyncpg://folio:folio_password@postgres:5432/folio_db
     env_file:
       - .env.example
     depends_on:
@@ -37,7 +37,7 @@ services:
 
   streamlit:
     build: .
-    container_name: equilibra_streamlit
+    container_name: folio_streamlit
     ports:
       - "8501:8501"
     environment:
