@@ -572,42 +572,51 @@ if investment_accounts:
                 st.text(f"机构: {institution}")
 
             # 持仓明细
-            if account_holdings:
-                st.markdown("**持仓明细**")
+            st.markdown("**持仓明细**")
 
-                for holding in account_holdings:
-                    h_col1, h_col2, h_col3, h_col4 = st.columns([2, 1, 1, 1])
+            # 现金行
+            h_col1, h_col2, h_col3, h_col4 = st.columns([2, 1, 1, 1])
+            with h_col1:
+                st.write("💰 **现金**")
+                st.caption("类型: 活期存款")
+            with h_col2:
+                st.write("")
+            with h_col3:
+                st.write(f"市值: {format_currency(balance, currency)}")
+            with h_col4:
+                st.write("")
 
-                    with h_col1:
-                        liquid_icon = "💧" if holding.get("is_liquid") else "📈"
-                        st.write(f"{liquid_icon} **{holding['name']}** ({holding['symbol']})")
-                        asset_type_display = {
-                            "stock": "股票",
-                            "fund": "基金",
-                            "bond": "债券",
-                            "crypto": "加密货币",
-                            "money_market": "货币基金",
-                        }.get(holding.get("asset_type", ""), holding.get("asset_type", ""))
-                        st.caption(f"类型: {asset_type_display}")
+            for holding in account_holdings:
+                h_col1, h_col2, h_col3, h_col4 = st.columns([2, 1, 1, 1])
 
-                    with h_col2:
-                        qty = holding.get("quantity", 0)
-                        price = holding.get("current_price", 0)
-                        st.write(f"数量: {float(qty or 0):,.2f}")
-                        st.caption(f"单价: {format_currency(price, currency)}")
+                with h_col1:
+                    liquid_icon = "💧" if holding.get("is_liquid") else "📈"
+                    st.write(f"{liquid_icon} **{holding['name']}** ({holding['symbol']})")
+                    asset_type_display = {
+                        "stock": "股票",
+                        "fund": "基金",
+                        "bond": "债券",
+                        "crypto": "加密货币",
+                        "money_market": "货币基金",
+                    }.get(holding.get("asset_type", ""), holding.get("asset_type", ""))
+                    st.caption(f"类型: {asset_type_display}")
 
-                    with h_col3:
-                        value = holding.get("current_value", 0)
-                        st.write(f"市值: {format_currency(value, currency)}")
+                with h_col2:
+                    qty = holding.get("quantity", 0)
+                    price = holding.get("current_price", 0)
+                    st.write(f"数量: {float(qty or 0):,.2f}")
+                    st.caption(f"单价: {format_currency(price, currency)}")
 
-                    with h_col4:
-                        if st.button("删除", key=f"delete_{holding['id']}"):
-                            if delete_holding(holding["id"]):
-                                st.success("删除成功")
-                                st.cache_data.clear()
-                                st.rerun()
-            else:
-                st.info("暂无持仓")
+                with h_col3:
+                    value = holding.get("current_value", 0)
+                    st.write(f"市值: {format_currency(value, currency)}")
+
+                with h_col4:
+                    if st.button("删除", key=f"delete_{holding['id']}"):
+                        if delete_holding(holding["id"]):
+                            st.success("删除成功")
+                            st.cache_data.clear()
+                            st.rerun()
 
             # 删除账户按钮
             with st.expander("⚠️ 危险操作", expanded=False):
