@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     """Application configuration settings"""
 
     # Database
-    database_url: str
+    database_url: str = "sqlite+aiosqlite:///test.db"
 
     # OKX API
     okx_api_key: str = ""
@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     okx_passphrase: str = ""
 
     # OpenAI
-    openai_api_key: str
+    openai_api_key: str = ""
 
     # Wedding Budget
     wedding_budget: float = 300000.0
