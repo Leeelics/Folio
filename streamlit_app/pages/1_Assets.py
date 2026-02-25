@@ -163,10 +163,10 @@ st.subheader("⚡ 快捷操作")
 
 col1, col2, col3, col4 = st.columns(4)
 with col1:
-    st.page_link("pages/4_📝_日常记账.py", label="📝 日常记账")
+    st.page_link("pages/4_Expenses.py", label="📝 日常记账")
 with col2:
-    st.page_link("pages/2_💰_账户管理.py", label="💰 账户管理")
+    st.page_link("pages/2_Accounts.py", label="💰 账户管理")
 with col3:
-    st.page_link("pages/3_📅_预算管理.py", label="📅 预算管理")
+    st.page_link("pages/3_Budgets.py", label="📅 预算管理")
 with col4:
-    st.page_link("pages/1_📊_资产总览.py", label="📊 资产总览")
+    st.page_link("pages/1_Assets.py", label="📊 资产总览")

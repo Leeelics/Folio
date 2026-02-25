@@ -98,19 +98,19 @@ with col1:
     st.markdown("**📊 资产总览**")
     st.caption("数据看板与图表分析")
     if st.button("进入", key="nav_overview"):
-        st.switch_page("pages/1_📊_资产总览.py")
+        st.switch_page("pages/1_Assets.py")
 
 with col2:
     st.markdown("**💰 账户管理**")
     st.caption("资产、负债、转账")
     if st.button("进入", key="nav_accounts"):
-        st.switch_page("pages/2_💰_账户管理.py")
+        st.switch_page("pages/2_Accounts.py")
 
 with col3:
     st.markdown("**📅 预算管理**")
     st.caption("预算计划与跟踪")
     if st.button("进入", key="nav_budgets"):
-        st.switch_page("pages/3_📅_预算管理.py")
+        st.switch_page("pages/3_Budgets.py")
 
 col4, col5, col6 = st.columns(3)
 
@@ -118,19 +118,19 @@ with col4:
     st.markdown("**📝 日常记账**")
     st.caption("记录日常消费")
     if st.button("进入", key="nav_expenses"):
-        st.switch_page("pages/4_📝_日常记账.py")
+        st.switch_page("pages/4_Expenses.py")
 
 with col5:
     st.markdown("**📈 投资组合**")
     st.caption("持仓分布与盈亏分析")
     if st.button("进入", key="nav_portfolio"):
-        st.switch_page("pages/5_📈_投资组合.py")
+        st.switch_page("pages/5_Portfolio.py")
 
 with col6:
     st.markdown("**📝 交易录入**")
     st.caption("买入、卖出、分红")
     if st.button("进入", key="nav_trading"):
-        st.switch_page("pages/6_📝_交易录入.py")
+        st.switch_page("pages/6_Trades.py")
 
 # 页脚
 st.markdown("---")

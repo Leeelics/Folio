@@ -289,7 +289,7 @@ if active_budgets:
                     st.session_state[f"edit_{budget_id}"] = True
                     st.rerun()
             with col6:
-                st.page_link("pages/4_📝_日常记账.py", label="📝 记一笔")
+                st.page_link("pages/4_Expenses.py", label="📝 记一笔")
             with col7:
                 if st.button("结算", key=f"complete_{budget_id}"):
                     if complete_budget(budget_id):
