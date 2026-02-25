@@ -84,7 +84,7 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    # Seed expense categories if table is empty
+    # Seed expense categories only if table is empty (preserve user customizations)
     async with AsyncSessionLocal() as session:
         from sqlalchemy import select, func as sa_func
 
@@ -93,15 +93,16 @@ async def init_db():
         )
         if count == 0:
             seed_categories = {
-                "餐饮": ["早餐", "午餐", "晚餐", "零食饮料", "外卖", "聚餐"],
-                "交通": ["公交地铁", "打车", "共享单车", "加油", "停车费", "高速过路"],
-                "购物": ["日用品", "服饰鞋包", "数码电子", "家居家装", "美妆护肤"],
-                "居住": ["房租", "物业费", "水电燃气", "网络通讯", "维修保养"],
-                "娱乐": ["电影演出", "游戏", "旅行", "运动健身", "书籍"],
-                "医疗": ["门诊", "药品", "体检", "保险"],
-                "教育": ["课程培训", "书籍资料", "考试报名"],
-                "人情": ["礼金红包", "请客送礼", "家庭支出"],
-                "其他": ["手续费", "罚款", "捐赠", "其他支出"],
+                "餐饮": ["三餐", "买菜", "饮品", "零食"],
+                "交通": ["公交地铁", "打车", "停车费", "油钱", "高速费"],
+                "购物": ["日用品", "服饰", "护肤", "数码", "电器", "数字产品", "纪念品"],
+                "居家": ["话费", "网费", "房租", "水费", "电费"],
+                "社交": ["送礼", "餐饮", "活动"],
+                "医疗": ["药品", "治疗", "保险"],
+                "娱乐": ["电影", "健身", "游戏", "旅游"],
+                "学习": ["书籍", "培训", "网课"],
+                "宠物": ["吃喝", "服饰", "医疗"],
+                "其他": ["其他支出"],
             }
             order = 0
             for cat, subs in seed_categories.items():

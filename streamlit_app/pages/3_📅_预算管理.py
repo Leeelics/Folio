@@ -314,53 +314,99 @@ st.markdown("---")
 st.subheader("✅ 已完成的预算")
 
 if completed_budgets:
-    for budget in completed_budgets:
-        budget_id = budget["id"]
-        with st.expander(f"✓ {budget['name']}", expanded=False):
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("预算金额", format_currency(budget.get("amount", 0)))
-            with col2:
-                st.metric("已支出", format_currency(budget.get("spent", 0)))
-            with col3:
-                st.metric("剩余", format_currency(budget.get("remaining", 0)))
-            
-            if st.button("删除", key=f"delete_completed_{budget_id}"):
+    completed_df = pd.DataFrame([
+        {
+            "选择": False,
+            "名称": b["name"],
+            "预算金额": _f(b.get("amount", 0)),
+            "已支出": _f(b.get("spent", 0)),
+            "剩余": _f(b.get("remaining", 0)),
+            "执行率(%)": round(_f(b.get("spent", 0)) / _f(b.get("amount", 1)) * 100, 1) if _f(b.get("amount", 0)) > 0 else 0,
+            "周期": f"{b.get('period_start', '')} ~ {b.get('period_end', '')}",
+        }
+        for b in completed_budgets
+    ])
+    edited_completed = st.data_editor(
+        completed_df,
+        column_config={
+            "选择": st.column_config.CheckboxColumn("选择", default=False),
+            "预算金额": st.column_config.NumberColumn(format="¥%.2f"),
+            "已支出": st.column_config.NumberColumn(format="¥%.2f"),
+            "剩余": st.column_config.NumberColumn(format="¥%.2f"),
+            "执行率(%)": st.column_config.NumberColumn(format="%.1f%%"),
+        },
+        disabled=["名称", "预算金额", "已支出", "剩余", "执行率(%)", "周期"],
+        hide_index=True,
+        use_container_width=True,
+        key="completed_table",
+    )
+    # 汇总
+    total_amt = sum(_f(b.get("amount", 0)) for b in completed_budgets)
+    total_spt = sum(_f(b.get("spent", 0)) for b in completed_budgets)
+    total_rem = sum(_f(b.get("remaining", 0)) for b in completed_budgets)
+    st.caption(f"汇总：总预算 {format_currency(total_amt)}　|　总支出 {format_currency(total_spt)}　|　总剩余 {format_currency(total_rem)}")
+    # 批量删除
+    selected_completed = edited_completed[edited_completed["选择"] == True]
+    if len(selected_completed) > 0:
+        if st.button(f"🗑️ 删除选中（{len(selected_completed)}条）", key="delete_sel_completed"):
+            for idx in selected_completed.index:
                 try:
-                    api_client.delete_budget(budget_id)
-                    st.success("预算已删除")
-                    st.cache_data.clear()
-                    st.rerun()
+                    api_client.delete_budget(completed_budgets[idx]["id"])
                 except Exception as e:
                     st.error(f"删除失败: {e}")
+            st.cache_data.clear()
+            st.rerun()
 else:
     st.info("暂无已完成的预算")
 
 
 # ============ 已取消的预算 ============
 st.markdown("---")
-st.subheader("❌ 已取消的预算")
+st.subheader("🚫 已取消的预算")
 
 if cancelled_budgets:
-    for budget in cancelled_budgets:
-        budget_id = budget["id"]
-        with st.expander(f"✗ {budget['name']}", expanded=False):
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("预算金额", format_currency(budget.get("amount", 0)))
-            with col2:
-                st.metric("已支出", format_currency(budget.get("spent", 0)))
-            with col3:
-                st.metric("剩余", format_currency(budget.get("remaining", 0)))
-            
-            if st.button("删除", key=f"delete_cancelled_{budget_id}"):
+    cancelled_df = pd.DataFrame([
+        {
+            "选择": False,
+            "名称": b["name"],
+            "预算金额": _f(b.get("amount", 0)),
+            "已支出": _f(b.get("spent", 0)),
+            "剩余": _f(b.get("remaining", 0)),
+            "执行率(%)": round(_f(b.get("spent", 0)) / _f(b.get("amount", 1)) * 100, 1) if _f(b.get("amount", 0)) > 0 else 0,
+            "周期": f"{b.get('period_start', '')} ~ {b.get('period_end', '')}",
+        }
+        for b in cancelled_budgets
+    ])
+    edited_cancelled = st.data_editor(
+        cancelled_df,
+        column_config={
+            "选择": st.column_config.CheckboxColumn("选择", default=False),
+            "预算金额": st.column_config.NumberColumn(format="¥%.2f"),
+            "已支出": st.column_config.NumberColumn(format="¥%.2f"),
+            "剩余": st.column_config.NumberColumn(format="¥%.2f"),
+            "执行率(%)": st.column_config.NumberColumn(format="%.1f%%"),
+        },
+        disabled=["名称", "预算金额", "已支出", "剩余", "执行率(%)", "周期"],
+        hide_index=True,
+        use_container_width=True,
+        key="cancelled_table",
+    )
+    # 汇总
+    total_amt_c = sum(_f(b.get("amount", 0)) for b in cancelled_budgets)
+    total_spt_c = sum(_f(b.get("spent", 0)) for b in cancelled_budgets)
+    total_rem_c = sum(_f(b.get("remaining", 0)) for b in cancelled_budgets)
+    st.caption(f"汇总：总预算 {format_currency(total_amt_c)}　|　总支出 {format_currency(total_spt_c)}　|　总剩余 {format_currency(total_rem_c)}")
+    # 批量删除
+    selected_cancelled = edited_cancelled[edited_cancelled["选择"] == True]
+    if len(selected_cancelled) > 0:
+        if st.button(f"🗑️ 删除选中（{len(selected_cancelled)}条）", key="delete_sel_cancelled"):
+            for idx in selected_cancelled.index:
                 try:
-                    api_client.delete_budget(budget_id)
-                    st.success("预算已删除")
-                    st.cache_data.clear()
-                    st.rerun()
+                    api_client.delete_budget(cancelled_budgets[idx]["id"])
                 except Exception as e:
                     st.error(f"删除失败: {e}")
+            st.cache_data.clear()
+            st.rerun()
 else:
     st.info("暂无已取消的预算")
 

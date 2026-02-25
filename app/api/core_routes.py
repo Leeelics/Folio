@@ -138,6 +138,26 @@ class CategoryResponse(BaseModel):
     subcategories: List[str]
 
 
+class CategoryItemResponse(BaseModel):
+    id: int
+    category: str
+    subcategory: str
+    is_active: bool
+    sort_order: int
+
+    class Config:
+        from_attributes = True
+
+
+class CategoryCreate(BaseModel):
+    category: str = Field(..., max_length=50)
+    subcategory: str = Field(..., max_length=50)
+
+
+class CategoryUpdate(BaseModel):
+    is_active: Optional[bool] = None
+
+
 class HoldingCreate(BaseModel):
     account_id: int = Field(..., description="所属投资账户ID")
     symbol: str = Field(..., max_length=50, description="资产代码")
@@ -657,6 +677,69 @@ async def get_categories(db: AsyncSession = Depends(get_db)):
     ]
 
 
+@router.get("/categories/all", response_model=List[CategoryItemResponse])
+async def get_all_categories(db: AsyncSession = Depends(get_db)):
+    """获取所有分类（含已停用），供管理界面使用"""
+    stmt = select(ExpenseCategory).order_by(
+        ExpenseCategory.category, ExpenseCategory.sort_order
+    )
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+@router.post("/categories", response_model=CategoryItemResponse, status_code=201)
+async def create_category(data: CategoryCreate, db: AsyncSession = Depends(get_db)):
+    """创建分类。若已存在且停用则重新激活，若已存在且启用则 409"""
+    stmt = select(ExpenseCategory).where(
+        and_(
+            ExpenseCategory.category == data.category,
+            ExpenseCategory.subcategory == data.subcategory,
+        )
+    )
+    result = await db.execute(stmt)
+    existing = result.scalar_one_or_none()
+
+    if existing:
+        if existing.is_active:
+            raise HTTPException(status_code=409, detail="该分类已存在")
+        existing.is_active = True
+        await db.flush()
+        await db.refresh(existing)
+        return existing
+
+    # 计算 sort_order: 该大类下最大值 + 1
+    max_order = await db.scalar(
+        select(func.max(ExpenseCategory.sort_order)).where(
+            ExpenseCategory.category == data.category
+        )
+    )
+    new_cat = ExpenseCategory(
+        category=data.category,
+        subcategory=data.subcategory,
+        is_active=True,
+        sort_order=(max_order or 0) + 1,
+    )
+    db.add(new_cat)
+    await db.flush()
+    await db.refresh(new_cat)
+    return new_cat
+
+
+@router.put("/categories/{category_id}", response_model=CategoryItemResponse)
+async def update_category(
+    category_id: int, data: CategoryUpdate, db: AsyncSession = Depends(get_db)
+):
+    """更新分类（启用/停用）"""
+    cat = await db.get(ExpenseCategory, category_id)
+    if not cat:
+        raise HTTPException(status_code=404, detail="分类不存在")
+    if data.is_active is not None:
+        cat.is_active = data.is_active
+    await db.flush()
+    await db.refresh(cat)
+    return cat
+
+
 # ============ Dashboard API ============
 
 
@@ -1007,7 +1090,7 @@ def _resolve_market(holding: Holding) -> "Optional[Market]":
         return mapping[market_str]
 
     # 按 asset_type 排除非股票类
-    if holding.asset_type in ("money_market", "crypto"):
+    if holding.asset_type in ("money_market", "crypto", "bond"):
         return None
 
     # 根据 symbol 格式猜测
@@ -1107,6 +1190,7 @@ async def sync_holdings_value(db: AsyncSession = Depends(get_db)):
         "synced_count": synced_count,
         "failed_count": failed_count,
         "total_value": total_value,
+        "errors": errors[:10],
         "synced_at": datetime.now(),
     }
 

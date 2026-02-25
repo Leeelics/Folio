@@ -839,6 +839,23 @@ class FolioAPIClient:
         """获取支出分类列表"""
         return self._get("/api/v1/core/categories")
 
+    def get_all_categories(self) -> List[Dict[str, Any]]:
+        """获取所有分类（含已停用）"""
+        return self._get("/api/v1/core/categories/all")
+
+    def create_category(self, category: str, subcategory: str) -> Dict[str, Any]:
+        """创建分类"""
+        return self._post("/api/v1/core/categories", {
+            "category": category,
+            "subcategory": subcategory,
+        })
+
+    def update_category(self, category_id: int, is_active: bool) -> Dict[str, Any]:
+        """更新分类（启用/停用）"""
+        return self._put(f"/api/v1/core/categories/{category_id}", {
+            "is_active": is_active,
+        })
+
     # ============ Phase 2.1: Dashboard APIs ============
 
     def get_dashboard(self) -> Dict[str, Any]:
