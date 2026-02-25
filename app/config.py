@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     wedding_budget: float = 300000.0
     wedding_date: str = "2026-06-30"
 
+    # Tushare
+    tushare_token: str = ""
+
     # Risk Management
     risk_margin_threshold: float = 0.2
 

@@ -29,6 +29,7 @@ dependencies = [
     "pgvector>=0.2.4",
     "ccxt>=4.2.25",
     "akshare>=1.13.0",
+    "tushare>=1.4.0",
     "langgraph>=0.0.20",
     "langchain-core>=0.1.16",
     "langchain-openai>=0.0.5",

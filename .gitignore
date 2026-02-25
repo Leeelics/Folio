@@ -46,5 +46,8 @@ Thumbs.db
 .claude/
 .opencode/
 
+# Test screenshots
+tests/screenshots/
+
 # Docker
 docker-compose.override.yml
