@@ -935,3 +935,104 @@ class FolioAPIClient:
     def get_pnl_analysis(self) -> Dict[str, Any]:
         """获取盈亏分析（成本、现价、盈亏额、盈亏率）"""
         return self._get("/api/v1/investments/pnl-analysis")
+
+    # ============ Phase 4: Reports APIs ============
+
+    def get_investment_performance_report(
+        self, start_date: str, end_date: str
+    ) -> Dict[str, Any]:
+        """生成投资业绩报表"""
+        return self._get(
+            f"/api/v1/reports/investment-performance?start_date={start_date}&end_date={end_date}"
+        )
+
+    def get_expense_summary_report(
+        self, start_date: str, end_date: str, category: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """生成支出汇总报表"""
+        params = f"start_date={start_date}&end_date={end_date}"
+        if category:
+            params += f"&category={category}"
+        return self._get(f"/api/v1/reports/expense-summary?{params}")
+
+    def get_account_snapshot_report(
+        self, as_of_date: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """生成账户快照报表"""
+        params = f"?as_of_date={as_of_date}" if as_of_date else ""
+        return self._get(f"/api/v1/reports/account-snapshot{params}")
+
+    # ============ Phase 4: Export APIs ============
+
+    def export_transactions(
+        self, start_date: str, end_date: str, asset_type: Optional[str] = None
+    ) -> bytes:
+        """导出交易记录 CSV"""
+        params = f"start_date={start_date}&end_date={end_date}"
+        if asset_type:
+            params += f"&asset_type={asset_type}"
+        response = self.client.get(f"{self.base_url}/api/v1/export/transactions?{params}")
+        response.raise_for_status()
+        return response.content
+
+    def export_expenses(
+        self, start_date: str, end_date: str, category: Optional[str] = None
+    ) -> bytes:
+        """导出支出记录 CSV"""
+        params = f"start_date={start_date}&end_date={end_date}"
+        if category:
+            params += f"&category={category}"
+        response = self.client.get(f"{self.base_url}/api/v1/export/expenses?{params}")
+        response.raise_for_status()
+        return response.content
+
+    def export_holdings(self, as_of_date: Optional[str] = None) -> bytes:
+        """导出持仓快照 CSV"""
+        params = f"?as_of_date={as_of_date}" if as_of_date else ""
+        response = self.client.get(f"{self.base_url}/api/v1/export/holdings{params}")
+        response.raise_for_status()
+        return response.content
+
+    def export_accounts(self) -> bytes:
+        """导出账户列表 CSV"""
+        response = self.client.get(f"{self.base_url}/api/v1/export/accounts")
+        response.raise_for_status()
+        return response.content
+
+    # ============ Phase 4: Import APIs ============
+
+    def import_transactions(
+        self, file_content: bytes, filename: str, account_name: str
+    ) -> Dict[str, Any]:
+        """导入交易记录 CSV"""
+        files = {"file": (filename, file_content, "text/csv")}
+        data = {"account_name": account_name}
+        response = self.client.post(
+            f"{self.base_url}/api/v1/import/transactions", files=files, data=data
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def import_expenses(
+        self, file_content: bytes, filename: str, account_id: int
+    ) -> Dict[str, Any]:
+        """导入支出记录 CSV"""
+        files = {"file": (filename, file_content, "text/csv")}
+        data = {"account_id": str(account_id)}
+        response = self.client.post(
+            f"{self.base_url}/api/v1/import/expenses", files=files, data=data
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def import_brokerage_statement(
+        self, file_content: bytes, filename: str, broker: str, account_name: str
+    ) -> Dict[str, Any]:
+        """导入券商对账单 CSV"""
+        files = {"file": (filename, file_content, "text/csv")}
+        data = {"broker": broker, "account_name": account_name}
+        response = self.client.post(
+            f"{self.base_url}/api/v1/import/brokerage-statement", files=files, data=data
+        )
+        response.raise_for_status()
+        return response.json()

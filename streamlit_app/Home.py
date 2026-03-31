@@ -38,6 +38,7 @@ with st.sidebar:
     - 📝 日常记账
     - 📈 投资组合
     - 📝 交易录入
+    - 📊 报表与数据
     """
     )
     st.markdown("---")
@@ -131,6 +132,14 @@ with col6:
     st.caption("买入、卖出、分红")
     if st.button("进入", key="nav_trading"):
         st.switch_page("pages/6_Trades.py")
+
+col7, col8, col9 = st.columns(3)
+
+with col7:
+    st.markdown("**📊 报表与数据**")
+    st.caption("报表生成、导入导出")
+    if st.button("进入", key="nav_reports"):
+        st.switch_page("pages/7_Reports.py")
 
 # 页脚
 st.markdown("---")

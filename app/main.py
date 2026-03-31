@@ -9,6 +9,9 @@ from app.api.routes import router
 from app.api.stock_routes import router as stock_router
 from app.api.brokerage_routes import router as brokerage_router
 from app.api.core_routes import router as core_router
+from app.api.report_routes import router as report_router
+from app.api.export_routes import router as export_router
+from app.api.import_routes import router as import_router
 from app.database import init_db
 
 # Configure logging
@@ -58,6 +61,9 @@ app.include_router(stock_router, prefix="/api/v1", tags=["Stock Market"])
 app.include_router(investment_router, prefix="/api/v1", tags=["Investment Management"])
 app.include_router(brokerage_router, prefix="/api/v1", tags=["Brokerage Accounts"])
 app.include_router(core_router, prefix="/api/v1", tags=["Core Phase 1"])
+app.include_router(report_router, tags=["Reports"])
+app.include_router(export_router, tags=["Export"])
+app.include_router(import_router, tags=["Import"])
 
 
 @app.get("/")

@@ -17,8 +17,8 @@ app/                    # 后端
 ├── database.py         # 数据库连接 + seed
 └── main.py             # FastAPI 入口
 
-streamlit_app/          # 前端 (6 个页面)
-├── api_client.py       # HTTP 客户端 (100+ 方法)
+streamlit_app/          # 前端 (7 个页面)
+├── api_client.py       # HTTP 客户端 (140+ 方法)
 ├── Home.py             # 首页导航
 └── pages/
     ├── 1_Assets.py     # 资产总览
@@ -26,7 +26,8 @@ streamlit_app/          # 前端 (6 个页面)
     ├── 3_Budgets.py    # 预算管理
     ├── 4_Expenses.py   # 日常记账
     ├── 5_Portfolio.py  # 投资组合
-    └── 6_Trades.py     # 交易录入
+    ├── 6_Trades.py     # 交易录入
+    └── 7_Reports.py    # 报表与数据管理
 
 tests/                  # 测试
 ```
@@ -43,7 +44,7 @@ tests/                  # 测试
 - Phase 1: ✅ 完成 (核心模型 + API)
 - Phase 2: ✅ 完成 (前端页面 + 预算 + 负债 + 日常记账)
 - Phase 3: ✅ 完成 (投资组合增强 + Tushare 迁移)
-- Phase 4: 🔲 高级功能 (报表、数据导入导出)
+- Phase 4: ✅ 完成 (报表、数据导入导出)
 
 ## Phase 3 完成内容
 1. ✅ 市值同步升级 — Tushare 单只股票查询，3 只 A 股 0.2s 完成
@@ -52,6 +53,15 @@ tests/                  # 测试
 4. ✅ 交易录入页面 — 买入/卖出/分红录入
 5. ✅ 分类管理 — CRUD API + 内联编辑 UI
 6. ✅ 预算表格化 — 已完成/已取消预算改为表格展示
+
+## Phase 4 完成内容
+1. ✅ 报表生成服务 — 投资业绩、支出汇总、账户快照
+2. ✅ CSV 导出服务 — 交易记录、支出记录、持仓快照、账户列表
+3. ✅ CSV 导入服务 — 交易记录、支出记录、券商对账单（含验证）
+4. ✅ 报表 API 端点 — 3 个报表生成端点
+5. ✅ 导出 API 端点 — 4 个 CSV 下载端点
+6. ✅ 导入 API 端点 — 3 个文件上传端点
+7. ✅ 报表与数据管理页面 — 5 个 Tab（报表生成、数据导出、数据导入）
 
 ---
 
@@ -103,6 +113,57 @@ RISK_MARGIN_THRESHOLD=0.2
 | GET | /holdings/summary | 持仓汇总 |
 | GET | /portfolio | 投资组合（持仓+市值+分配比例） |
 | GET | /pnl-analysis | 盈亏分析 |
+
+### 报表功能 (/api/v1/reports)
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /investment-performance | 投资业绩报表 |
+| GET | /expense-summary | 支出汇总报表 |
+| GET | /account-snapshot | 账户快照报表 |
+
+### 导出功能 (/api/v1/export)
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /transactions | 导出交易记录 CSV |
+| GET | /expenses | 导出支出记录 CSV |
+| GET | /holdings | 导出持仓快照 CSV |
+| GET | /accounts | 导出账户列表 CSV |
+
+### 导入功能 (/api/v1/import)
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | /transactions | 导入交易记录 CSV |
+| POST | /expenses | 导入支出记录 CSV |
+| POST | /brokerage-statement | 导入券商对账单 CSV |
+
+---
+
+## CSV 格式规范
+
+### 交易记录导入模板
+```csv
+date,symbol,name,asset_type,type,quantity,price,fees,currency,notes
+2026-01-15,600000,浦发银行,stock,buy,100,10.50,5.00,CNY,
+2026-01-20,00700,腾讯控股,stock,buy,50,350.00,10.00,HKD,
+```
+**必填列**: date, symbol, type, quantity, price
+
+### 支出记录导入模板
+```csv
+date,amount,category,subcategory,merchant,payment_method,is_shared,notes
+2026-01-15,50.00,餐饮,午餐,麦当劳,微信支付,false,
+2026-01-20,1200.00,住房,房租,链家,银行转账,true,1月房租
+```
+**必填列**: date, amount, category
+
+### 券商对账单（通用格式）
+```csv
+date,symbol,name,type,quantity,price,fees,currency
+2026-01-15,600000,浦发银行,buy,100,10.50,5.00,CNY
+2026-01-20,600000,浦发银行,sell,50,11.00,2.50,CNY
+2026-01-25,600000,浦发银行,dividend,100,0.50,0,CNY
+```
+**必填列**: date, symbol, type, quantity, price
 
 ---
 
