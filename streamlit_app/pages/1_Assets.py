@@ -109,14 +109,24 @@ col_trend, col_category = st.columns(2)
 
 expenses = api_client.get_expenses()
 
+# 防御性处理：确保费用数据有日期字段
+def get_expense_date(e):
+    """获取费用日期，支持 expense_date 或 date 字段"""
+    date_str = e.get("expense_date") or e.get("date")
+    if date_str:
+        return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+    return None
+
 with col_trend:
     st.subheader("月度支出趋势")
     six_months_ago = datetime.now() - timedelta(days=180)
-    recent_expenses = [e for e in expenses if datetime.fromisoformat(e["date"].replace("Z", "+00:00")) >= six_months_ago]
+    recent_expenses = [e for e in expenses if get_expense_date(e) and get_expense_date(e) >= six_months_ago]
     
     df_expenses = pd.DataFrame(recent_expenses)
     if not df_expenses.empty:
-        df_expenses["month"] = pd.to_datetime(df_expenses["date"]).dt.to_period("M").astype(str)
+        # 使用 expense_date 或 date 字段
+        date_col = "expense_date" if "expense_date" in df_expenses.columns else "date"
+        df_expenses["month"] = pd.to_datetime(df_expenses[date_col]).dt.to_period("M").astype(str)
         df_monthly = df_expenses.groupby("month")["amount"].sum().reset_index()
         fig_trend = px.line(df_monthly, x="month", y="amount", markers=True)
         st.plotly_chart(fig_trend, use_container_width=True)
@@ -126,7 +136,7 @@ with col_trend:
 with col_category:
     st.subheader("本月支出分类")
     current_month = datetime.now().replace(day=1)
-    month_expenses = [e for e in expenses if datetime.fromisoformat(e["date"].replace("Z", "+00:00")) >= current_month]
+    month_expenses = [e for e in expenses if get_expense_date(e) and get_expense_date(e) >= current_month]
     
     if month_expenses:
         df_category = pd.DataFrame(month_expenses).groupby("category")["amount"].sum().reset_index()

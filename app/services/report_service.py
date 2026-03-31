@@ -48,11 +48,14 @@ class ReportService:
         holdings_breakdown = []
         for holding in holdings:
             cost = holding.total_cost or Decimal("0")
-            market_value = (
-                holding.current_price * holding.quantity
-                if holding.current_price
-                else cost
-            )
+            # 获取当前价格（从 extra_data 或默认使用 avg_cost）
+            current_price = None
+            if holding.extra_data and isinstance(holding.extra_data, dict):
+                current_price = holding.extra_data.get("current_price")
+            if current_price is None:
+                current_price = holding.avg_cost  # 默认使用平均成本
+            
+            market_value = current_price * holding.quantity if current_price else cost
             pnl = market_value - cost
             pnl_pct = (pnl / cost * 100) if cost > 0 else Decimal("0")
 
@@ -65,7 +68,7 @@ class ReportService:
                 "asset_type": holding.asset_type,
                 "quantity": str(holding.quantity),
                 "avg_cost": str(holding.avg_cost),
-                "current_price": str(holding.current_price) if holding.current_price else None,
+                "current_price": str(current_price) if current_price else None,
                 "cost": str(cost),
                 "market_value": str(market_value),
                 "pnl": str(pnl),
