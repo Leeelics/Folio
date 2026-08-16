@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -70,8 +70,7 @@ class TransactionResponse(BaseModel):
     notes: Optional[str]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class HoldingResponse(BaseModel):
@@ -89,8 +88,7 @@ class HoldingResponse(BaseModel):
     first_buy_date: Optional[datetime]
     last_transaction_date: Optional[datetime]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FundProductCreateRequest(BaseModel):
@@ -126,8 +124,7 @@ class FundProductResponse(BaseModel):
     is_active: bool
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class NavUpdateRequest(BaseModel):

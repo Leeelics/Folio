@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
 
@@ -27,9 +28,7 @@ class Settings(BaseSettings):
     # Risk Management
     risk_margin_threshold: float = 0.2
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
+    model_config = ConfigDict(env_file=".env", case_sensitive=False)
 
 
 @lru_cache()

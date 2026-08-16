@@ -6,7 +6,7 @@
 from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -55,8 +55,7 @@ class AccountResponse(BaseModel):
     notes: Optional[str]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CashBalanceResponse(BaseModel):
@@ -116,8 +115,7 @@ class TransactionResponse(BaseModel):
     notes: Optional[str]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UnifiedAccountViewResponse(BaseModel):
@@ -136,8 +134,7 @@ class UnifiedAccountViewResponse(BaseModel):
     total_holdings: float
     total_assets: float
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PortfolioSummaryResponse(BaseModel):

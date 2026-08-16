@@ -12,6 +12,7 @@ from app.api.core_routes import router as core_router
 from app.api.report_routes import router as report_router
 from app.api.export_routes import router as export_router
 from app.api.import_routes import router as import_router
+from app.auth import get_cors_origins
 from app.database import init_db
 
 # Configure logging
@@ -46,12 +47,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configure CORS
+# Configure CORS - 限制来源，生产环境更安全
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 生产环境应该限制具体域名
+    allow_origins=get_cors_origins(),  # 从环境变量获取允许的域名
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
