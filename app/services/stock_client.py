@@ -78,8 +78,10 @@ class StockClient:
             try:
                 from dotenv import dotenv_values
                 token = dotenv_values(".env").get("TUSHARE_TOKEN", "")
-            except Exception:
-                pass
+            except ImportError as e:
+                logger.debug(f"python-dotenv not installed: {e}")
+            except FileNotFoundError:
+                logger.debug(".env file not found, skipping dotenv loading")
         if token:
             ts.set_token(token)
             self._pro = ts.pro_api(token)
@@ -169,19 +171,23 @@ class StockClient:
     # ── safe type conversions ───────────────────────────────────────
 
     def _safe_decimal(self, value: Any, default: Decimal = Decimal("0")) -> Decimal:
+        """安全转换为 Decimal，失败时返回默认值并记录警告"""
         try:
             if pd.isna(value) or value is None or value == "":
                 return default
             return Decimal(str(value))
-        except Exception:
+        except (ValueError, TypeError, ArithmeticError) as e:
+            logger.debug(f"Failed to convert {value} to Decimal: {e}, using default {default}")
             return default
 
     def _safe_int(self, value: Any, default: int = 0) -> int:
+        """安全转换为 int，失败时返回默认值并记录警告"""
         try:
             if pd.isna(value) or value is None or value == "":
                 return default
             return int(float(value))
-        except Exception:
+        except (ValueError, TypeError) as e:
+            logger.debug(f"Failed to convert {value} to int: {e}, using default {default}")
             return default
 
     # ── Tushare spot data ───────────────────────────────────────────

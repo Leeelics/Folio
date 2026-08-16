@@ -342,8 +342,8 @@ class StockPositionManager:
                 quote = await self.stock_client.fetch_realtime_quote(symbol, market_enum)
                 if quote:
                     name = quote.name
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to fetch stock name for {symbol}: {e}")
 
         watchlist = StockWatchlist(
             symbol=symbol,

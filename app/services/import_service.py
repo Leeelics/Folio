@@ -109,8 +109,9 @@ class ImportService:
                     # 解析日期
                     try:
                         transaction_date = pd.to_datetime(row["date"]).to_pydatetime()
-                    except Exception:
-                        result.add_error(row_num, "date", "日期格式无效")
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"Row {row_num}: Invalid date format '{row.get('date')}': {e}")
+                        result.add_error(row_num, "date", f"日期格式无效: {row.get('date')}")
                         continue
 
                     # 验证交易类型
@@ -245,8 +246,9 @@ class ImportService:
                     # 解析日期
                     try:
                         expense_date = pd.to_datetime(row["date"]).date()
-                    except Exception:
-                        result.add_error(row_num, "date", "日期格式无效")
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"Row {row_num}: Invalid date format '{row.get('date')}': {e}")
+                        result.add_error(row_num, "date", f"日期格式无效: {row.get('date')}")
                         continue
 
                     # 解析金额
@@ -361,8 +363,9 @@ class ImportService:
                     # 解析日期
                     try:
                         transaction_date = pd.to_datetime(row["date"]).to_pydatetime()
-                    except Exception:
-                        result.add_error(row_num, "date", "日期格式无效")
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"Row {row_num}: Invalid date format '{row.get('date')}': {e}")
+                        result.add_error(row_num, "date", f"日期格式无效: {row.get('date')}")
                         continue
 
                     # 验证交易类型
